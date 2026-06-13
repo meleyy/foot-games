@@ -1,0 +1,30 @@
+{
+  "name": "foot-games",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "import:worldcup": "node scripts/import-world-cup.mjs",
+    "import:squads": "node scripts/import-espn-squads.mjs",
+    "import:ratings": "node scripts/import-ea-ratings.mjs",
+    "import:wc": "node scripts/import-espn-squads.mjs && node scripts/import-ea-ratings.mjs",
+    "import:fifaindex": "node scripts/import-fifaindex-ratings.mjs",
+    "import:full": "node scripts/import-espn-squads.mjs && node scripts/import-fifaindex-ratings.mjs && node scripts/export-game-data.mjs",
+    "import:defaults": "node scripts/default-missing-ratings.mjs",
+    "import:sofifa": "node scripts/import-sofifa-ratings.mjs",
+    "export:game": "node scripts/export-game-data.mjs",
+    "predev": "node scripts/export-game-data.mjs",
+    "db:players": "node scripts/list-players.mjs",
+    "dev": "node scripts/server.mjs",
+    "game": "node scripts/server.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.10.0",
+    "cheerio": "^1.2.0",
+    "dotenv": "^16.5.0",
+    "playwright": "^1.60.0"
+  }
+}

@@ -1,0 +1,100 @@
+/**
+ * Foot Games — Design tokens
+ * Source de vérité : couleurs, espacements, rayons, typo, motion.
+ */
+
+:root {
+  /* ── Brand colors ── */
+  --color-purple: #6b2dab;
+  --color-magenta: #e91e8c;
+  --color-lime: #b8f52a;
+  --color-teal: #00c9b7;
+  --color-coral: #ff4d4d;
+  --color-navy: #1a1a4e;
+  --color-ink: #120f2e;
+  --color-white: #fffaf2;
+  --color-paper: #ffffff;
+  --color-bg: #6312eb;
+
+  /* ── Semantic surfaces ── */
+  --surface-page: var(--color-bg);
+  --surface-panel: var(--color-paper);
+  --surface-panel-grid: rgba(107, 45, 171, 0.07);
+  --surface-muted: rgba(18, 15, 46, 0.06);
+  --surface-border: rgba(18, 15, 46, 0.12);
+
+  /* ── Semantic text ── */
+  --text-primary: var(--color-ink);
+  --text-on-dark: var(--color-white);
+  --text-muted: rgba(18, 15, 46, 0.72);
+
+  /* ── Role colors (pitch) ── */
+  --role-gk: rgba(184, 245, 42, 0.94);
+  --role-df: rgba(0, 201, 183, 0.94);
+  --role-mf: rgba(233, 30, 140, 0.92);
+  --role-fw: rgba(255, 77, 77, 0.94);
+  --role-filled: rgba(107, 45, 171, 0.94);
+
+  /* ── Spacing scale (4px base) ── */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+
+  /* ── Layout ── */
+  --panel-padding: var(--space-5);
+  --panel-padding-lg: var(--space-10);
+  --card-padding: var(--space-4);
+  --card-padding-sm: var(--space-3);
+  --gap-xs: var(--space-2);
+  --gap-sm: var(--space-3);
+  --gap-md: var(--space-4);
+  --gap-lg: var(--space-6);
+  --shell-max: 87.5rem;
+
+  /* ── Radii ── */
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-pill: 999px;
+
+  /* ── Borders ── */
+  --border-width: 2px;
+  --border-width-thick: 3px;
+  --border-color: var(--color-ink);
+
+  /* ── Typography ── */
+  --font-display: "Eurostile", "Arial Narrow", Arial, sans-serif;
+  --font-body: "Eurostile", "Arial Narrow", Arial, sans-serif;
+  --text-xs: 0.68rem;
+  --text-sm: 0.78rem;
+  --text-base: 0.92rem;
+  --text-md: 1.1rem;
+  --text-lg: clamp(1.4rem, 3vw, 2rem);
+  --text-xl: clamp(1.8rem, 4vw, 2.8rem);
+  --tracking-wide: 0.04em;
+  --tracking-ui: 0.03em;
+
+  /* ── Motion ── */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --duration: 0.38s;
+  --shadow-panel: 8px 8px 0 rgba(18, 15, 46, 0.14);
+
+  /* ── Legacy aliases (game.css) ── */
+  --purple: var(--color-purple);
+  --magenta: var(--color-magenta);
+  --lime: var(--color-lime);
+  --teal: var(--color-teal);
+  --coral: var(--color-coral);
+  --navy: var(--color-navy);
+  --ink: var(--color-ink);
+  --white: var(--color-white);
+  --paper: var(--color-paper);
+  --shadow: var(--shadow-panel);
+  --grid: var(--surface-panel-grid);
+}

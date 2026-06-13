@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Foot Games — Design sheet</title>
+    <link rel="stylesheet" href="/css/fonts.css" />
+    <link rel="stylesheet" href="/css/tokens.css" />
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        padding: var(--space-8) var(--panel-padding);
+        font-family: var(--font-body);
+        color: var(--text-primary);
+        background: var(--surface-page);
+        line-height: 1.45;
+      }
+
+      .ds-wrap {
+        max-width: var(--shell-max);
+        margin: 0 auto;
+      }
+
+      .ds-hero {
+        margin-bottom: var(--gap-lg);
+        color: var(--text-on-dark);
+      }
+
+      .ds-hero h1 {
+        margin: 0 0 var(--space-2);
+        font-family: var(--font-display);
+        font-weight: 900;
+        font-size: var(--text-xl);
+        letter-spacing: var(--tracking-wide);
+        text-transform: uppercase;
+      }
+
+      .ds-hero p {
+        margin: 0;
+        opacity: 0.85;
+      }
+
+      .ds-section {
+        margin-bottom: var(--gap-lg);
+      }
+
+      .ds-section h2 {
+        margin: 0 0 var(--gap-md);
+        font-family: var(--font-display);
+        font-weight: 900;
+        font-size: var(--text-md);
+        letter-spacing: var(--tracking-wide);
+        text-transform: uppercase;
+      }
+
+      .ds-panel {
+        padding: var(--panel-padding);
+        border-radius: var(--radius-lg);
+        background-color: var(--surface-panel);
+        background-image:
+          linear-gradient(var(--surface-panel-grid) 1px, transparent 1px),
+          linear-gradient(90deg, var(--surface-panel-grid) 1px, transparent 1px);
+        background-size: 22px 22px;
+        color: var(--text-primary);
+      }
+
+      .ds-grid {
+        display: grid;
+        gap: var(--gap-md);
+      }
+
+      .ds-grid--colors {
+        grid-template-columns: repeat(auto-fill, minmax(8rem, 1fr));
+      }
+
+      .ds-swatch {
+        border-radius: var(--radius-md);
+        overflow: hidden;
+        border: var(--border-width) solid var(--border-color);
+      }
+
+      .ds-swatch__color {
+        height: 4.5rem;
+      }
+
+      .ds-swatch__label {
+        padding: var(--space-2) var(--space-3);
+        font-size: var(--text-sm);
+        font-weight: 700;
+        background: var(--surface-panel);
+      }
+
+      .ds-type-row {
+        display: grid;
+        gap: var(--space-1);
+        padding: var(--card-padding-sm) 0;
+        border-bottom: 1px solid var(--surface-border);
+      }
+
+      .ds-type-row strong {
+        font-family: var(--font-display);
+        font-weight: 900;
+        letter-spacing: var(--tracking-wide);
+        text-transform: uppercase;
+      }
+
+      .ds-space-row {
+        display: flex;
+        align-items: center;
+        gap: var(--gap-md);
+        margin-bottom: var(--space-2);
+      }
+
+      .ds-space-bar {
+        height: var(--space-3);
+        background: var(--color-teal);
+        border: var(--border-width) solid var(--border-color);
+      }
+
+      .ds-components {
+        display: grid;
+        gap: var(--gap-md);
+      }
+
+      .ds-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 2.9rem;
+        padding: var(--space-3) var(--space-5);
+        border: 0;
+        border-radius: var(--radius-pill);
+        font-family: var(--font-body);
+        font-weight: 800;
+        letter-spacing: var(--tracking-ui);
+        text-transform: uppercase;
+        cursor: pointer;
+      }
+
+      .ds-btn--primary {
+        background: linear-gradient(90deg, var(--color-magenta), var(--color-coral));
+        color: var(--text-on-dark);
+      }
+
+      .ds-btn--ghost {
+        background: var(--surface-panel);
+        color: var(--text-primary);
+        border: var(--border-width) solid var(--border-color);
+      }
+
+      .ds-banner {
+        padding: var(--card-padding);
+        border-radius: var(--radius-md);
+        border: var(--border-width) solid var(--border-color);
+        background: linear-gradient(90deg, var(--color-teal), var(--color-lime));
+      }
+
+      .ds-player {
+        display: grid;
+        grid-template-columns: 1fr auto auto;
+        gap: var(--gap-sm);
+        align-items: center;
+        padding: var(--card-padding-sm) var(--card-padding);
+        border: var(--border-width) solid var(--border-color);
+        border-radius: var(--radius-md);
+        background: var(--surface-panel);
+      }
+
+      .ds-ovr {
+        display: inline-grid;
+        place-items: center;
+        min-width: 2.1rem;
+        height: 2.1rem;
+        padding: 0 var(--space-2);
+        border-radius: var(--radius-sm);
+        background: var(--color-lime);
+        color: var(--text-primary);
+        font-family: var(--font-display);
+        font-weight: 800;
+        font-size: var(--text-sm);
+      }
+
+      .ds-roles {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--gap-sm);
+      }
+
+      .ds-role {
+        padding: var(--space-2) var(--space-3);
+        border-radius: var(--radius-sm);
+        border: var(--border-width) solid var(--border-color);
+        font-family: var(--font-display);
+        font-weight: 800;
+        font-size: var(--text-sm);
+      }
+
+      .ds-role--gk { background: var(--role-gk); }
+      .ds-role--df { background: var(--role-df); }
+      .ds-role--mf { background: var(--role-mf); }
+      .ds-role--fw { background: var(--role-fw); }
+
+      .ds-token {
+        font-family: ui-monospace, monospace;
+        font-size: var(--text-sm);
+        color: var(--text-muted);
+      }
+
+      .ds-footer {
+        margin-top: var(--gap-lg);
+        font-size: var(--text-sm);
+      }
+
+      .ds-footer a {
+        color: var(--text-on-dark);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="ds-wrap">
+      <header class="ds-hero">
+        <h1>Foot Games — Design sheet</h1>
+        <p>Tokens, espacements et composants de référence.</p>
+      </header>
+
+      <section class="ds-section ds-panel">
+        <h2>Couleurs</h2>
+        <div class="ds-grid ds-grid--colors">
+          <div class="ds-swatch"><div class="ds-swatch__color" style="background:#6b2dab"></div><div class="ds-swatch__label">purple</div></div>
+          <div class="ds-swatch"><div class="ds-swatch__color" style="background:#e91e8c"></div><div class="ds-swatch__label">magenta</div></div>
+          <div class="ds-swatch"><div class="ds-swatch__color" style="background:#b8f52a"></div><div class="ds-swatch__label">lime</div></div>
+          <div class="ds-swatch"><div class="ds-swatch__color" style="background:#00c9b7"></div><div class="ds-swatch__label">teal</div></div>
+          <div class="ds-swatch"><div class="ds-swatch__color" style="background:#ff4d4d"></div><div class="ds-swatch__label">coral</div></div>
+          <div class="ds-swatch"><div class="ds-swatch__color" style="background:#120f2e"></div><div class="ds-swatch__label">ink</div></div>
+          <div class="ds-swatch"><div class="ds-swatch__color" style="background:#6312eb"></div><div class="ds-swatch__label">bg</div></div>
+          <div class="ds-swatch"><div class="ds-swatch__color" style="background:#fff;border-bottom:1px solid #eee"></div><div class="ds-swatch__label">paper</div></div>
+        </div>
+      </section>
+
+      <section class="ds-section ds-panel">
+        <h2>Typographie — Eurostile</h2>
+        <div class="ds-type-row"><strong>Display / 900</strong><span>Titres, labels UI, notes OVR</span></div>
+        <div class="ds-type-row"><span style="font-weight:800">Heavy / 800</span><span>Boutons, badges, postes</span></div>
+        <div class="ds-type-row"><span style="font-weight:700">Bold / 700</span><span>Noms de joueurs, champs</span></div>
+        <div class="ds-type-row"><span style="font-weight:400">Regular / 400</span><span>Corps de texte</span></div>
+      </section>
+
+      <section class="ds-section ds-panel">
+        <h2>Espacements</h2>
+        <p class="ds-token">panel-padding = 1.25rem · card-padding = 1rem · gap-md = 1rem</p>
+        <div class="ds-space-row"><span class="ds-token">--space-2</span><div class="ds-space-bar" style="width:0.5rem"></div></div>
+        <div class="ds-space-row"><span class="ds-token">--space-3</span><div class="ds-space-bar" style="width:0.75rem"></div></div>
+        <div class="ds-space-row"><span class="ds-token">--space-4</span><div class="ds-space-bar" style="width:1rem"></div></div>
+        <div class="ds-space-row"><span class="ds-token">--space-5</span><div class="ds-space-bar" style="width:1.25rem"></div></div>
+        <div class="ds-space-row"><span class="ds-token">--space-6</span><div class="ds-space-bar" style="width:1.5rem"></div></div>
+      </section>
+
+      <section class="ds-section ds-panel">
+        <h2>Composants</h2>
+        <div class="ds-components">
+          <div>
+            <button type="button" class="ds-btn ds-btn--primary">Jouer en solo</button>
+            <button type="button" class="ds-btn ds-btn--ghost" style="margin-left:0.5rem">Voir les données</button>
+          </div>
+          <div class="ds-banner">
+            <span class="ds-token" style="display:block;margin-bottom:0.25rem">PAYS 1 / 11</span>
+            <strong style="font-family:var(--font-display);font-weight:900;font-size:1.5rem">France</strong>
+          </div>
+          <div class="ds-player">
+            <strong>Kylian Mbappé</strong>
+            <span>Forward</span>
+            <span class="ds-ovr">91</span>
+          </div>
+          <div class="ds-roles">
+            <span class="ds-role ds-role--gk">GK</span>
+            <span class="ds-role ds-role--df">DF</span>
+            <span class="ds-role ds-role--mf">MF</span>
+            <span class="ds-role ds-role--fw">FW</span>
+          </div>
+        </div>
+      </section>
+
+      <p class="ds-footer"><a href="/game.html">← Retour au jeu</a></p>
+    </div>
+  </body>
+</html>
