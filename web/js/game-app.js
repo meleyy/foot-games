@@ -562,63 +562,7 @@ function updateAllScrollFades() {
   updateScrollFades("#draft-squad-list");
 }
 
-const PITCH_ASPECT = 1265 / 736;
-
-function measureDraftRowHeight(columns, pitchZone, playersHead) {
-  const pitchStyle = getComputedStyle(pitchZone);
-  const padX = parseFloat(pitchStyle.paddingLeft) + parseFloat(pitchStyle.paddingRight);
-  const padY = parseFloat(pitchStyle.paddingTop) + parseFloat(pitchStyle.paddingBottom);
-  const columnsStyle = getComputedStyle(columns);
-  const rowGap = parseFloat(columnsStyle.rowGap) || 0;
-  const headHeight = playersHead.offsetHeight;
-
-  const draftBoard = columns.closest(".draft-board");
-  const siteHeader = document.querySelector(".site-header");
-  const headerBottom = siteHeader?.getBoundingClientRect().bottom ?? 0;
-  const boardStyle = draftBoard ? getComputedStyle(draftBoard) : null;
-  const boardGap = boardStyle ? parseFloat(boardStyle.gap) || 0 : 0;
-  const draftTop = draftBoard?.querySelector(".draft-top");
-  const draftTopHeight = draftTop?.offsetHeight ?? 0;
-  const columnsMaxHeight = Math.max(
-    220,
-    Math.floor(window.innerHeight - headerBottom - draftTopHeight - boardGap - 8),
-  );
-
-  columns.style.setProperty("--draft-columns-max-height", `${columnsMaxHeight}px`);
-  columns.style.maxHeight = `${columnsMaxHeight}px`;
-
-  const contentWidth = Math.max(0, pitchZone.clientWidth - padX);
-  const widthBasedPitchHeight = contentWidth * PITCH_ASPECT + padY;
-  const pitchCardHeight = Math.min(widthBasedPitchHeight, columnsMaxHeight);
-  const innerWidth = Math.max(0, (pitchCardHeight - padY) / PITCH_ASPECT);
-
-  if (widthBasedPitchHeight > pitchCardHeight + 1) {
-    pitchZone.style.setProperty("--draft-pitch-inner-width", `${innerWidth}px`);
-  } else {
-    pitchZone.style.removeProperty("--draft-pitch-inner-width");
-  }
-
-  columns.style.setProperty("--draft-pitch-height", `${Math.round(pitchCardHeight)}px`);
-  columns.style.setProperty("--draft-block-height", `${Math.round(pitchCardHeight)}px`);
-
-  return Math.max(0, Math.round(pitchCardHeight - headHeight - rowGap));
-}
-
 function syncDraftRowHeight() {
-  const pitchZone = $(".draft-zone-pitch");
-  const playersHead = $(".draft-zone-players-head");
-  const columns = $(".draft-columns");
-
-  if (!pitchZone || !playersHead || !columns) {
-    return;
-  }
-
-  const height = measureDraftRowHeight(columns, pitchZone, playersHead);
-
-  if (height > 0) {
-    columns.style.setProperty("--draft-row-height", `${height}px`);
-  }
-
   const siteHeader = document.querySelector(".site-header");
   const app = $("#app");
 
@@ -632,8 +576,9 @@ function syncDraftRowHeight() {
 function bindDraftRowHeightSync() {
   const pitchZone = $(".draft-zone-pitch");
   const playersHead = $(".draft-zone-players-head");
+  const columns = $(".draft-columns");
 
-  if (!pitchZone || !playersHead) {
+  if (!pitchZone || !playersHead || !columns) {
     return;
   }
 
@@ -648,6 +593,7 @@ function bindDraftRowHeightSync() {
   }
 
   window._draftPitchResizeObserver.disconnect();
+  window._draftPitchResizeObserver.observe(columns);
   window._draftPitchResizeObserver.observe(pitchZone);
   window._draftPitchResizeObserver.observe(playersHead);
 }
@@ -797,21 +743,6 @@ function renderDraft() {
             <strong id="draft-nation-name">${nation ?? "—"}</strong>
           </div>
         </div>
-        <div class="panel draft-zone draft-zone-squad anim-slide-right" id="draft-squad-panel">
-          <header class="squad-head">
-            <h3>${state.squadName}</h3>
-            <div class="avg-badge">
-              <span>Moyenne</span>
-              <strong id="draft-squad-avg">${filled ? ratingOvr(avg) : "—"}</strong>
-            </div>
-          </header>
-          <p class="squad-progress" id="draft-squad-progress">${filled} / 11 joueurs</p>
-          <div class="list-scroll-shell">
-            <div class="list-scroll-edge list-scroll-edge-top" aria-hidden="true"></div>
-            <div class="squad-list list-scroll" id="draft-squad-list">${renderDraftSquadRows()}</div>
-            <div class="list-scroll-edge list-scroll-edge-bottom" aria-hidden="true"></div>
-          </div>
-        </div>
 
         <div class="panel draft-zone draft-zone-players-list anim-slide-left">
           <div class="list-scroll-shell">
@@ -825,6 +756,21 @@ function renderDraft() {
         <div class="panel draft-zone draft-zone-pitch anim-fade">
           <div class="pitch pitch-11" id="draft-pitch">
             ${renderDraftPitchSlots(state.formation, { animate: true })}
+          </div>
+        </div>
+        <div class="panel draft-zone draft-zone-squad anim-slide-right" id="draft-squad-panel">
+          <header class="squad-head">
+            <h3>${state.squadName}</h3>
+            <div class="avg-badge">
+              <span>Moyenne</span>
+              <strong id="draft-squad-avg">${filled ? ratingOvr(avg) : "—"}</strong>
+            </div>
+          </header>
+          <p class="squad-progress" id="draft-squad-progress">${filled} / 11 joueurs</p>
+          <div class="list-scroll-shell">
+            <div class="list-scroll-edge list-scroll-edge-top" aria-hidden="true"></div>
+            <div class="squad-list list-scroll" id="draft-squad-list">${renderDraftSquadRows()}</div>
+            <div class="list-scroll-edge list-scroll-edge-bottom" aria-hidden="true"></div>
           </div>
         </div>
       </div>
