@@ -189,6 +189,12 @@ const server = http.createServer((request, response) => {
     return;
   }
 
+  if (request.method === "GET" && url.pathname === "/game.html") {
+    response.writeHead(301, { Location: "/" });
+    response.end();
+    return;
+  }
+
   if (request.method === "GET") {
     serveStatic(request, response);
     return;
@@ -213,6 +219,5 @@ server.on("error", (error) => {
 server.listen(port, () => {
   ensureGameDataFile();
   console.log(`Foot Games: http://localhost:${port}`);
-  console.log(`Jeu solo:     http://localhost:${port}/game.html`);
   console.log(`Database: ${databasePath}`);
 });

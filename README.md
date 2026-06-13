@@ -126,7 +126,7 @@ npm run import:full
 npm run dev
 ```
 
-Ouvre http://localhost:3000/game.html
+Ouvre http://localhost:3000
 
 1. Choisis une formation et un groupe CDM 2026
 2. Draft : nation tirée au sort → 3 joueurs → 3 rolls max par poste

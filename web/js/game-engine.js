@@ -169,6 +169,25 @@ export function drawUniqueNations(nations, count = 11) {
   return shuffle(nations).slice(0, count);
 }
 
+export function rollDraftNation(draftNations, allNations, pickIndex) {
+  const current = draftNations[pickIndex];
+
+  if (!current) {
+    return null;
+  }
+
+  const taken = new Set(draftNations.filter((_, index) => index !== pickIndex));
+  const pool = allNations.filter(
+    (nation) => !taken.has(nation) && nation !== current,
+  );
+
+  if (!pool.length) {
+    return null;
+  }
+
+  return pickRandom(pool);
+}
+
 export function pickRandomGroup(groups) {
   const keys = Object.keys(groups);
   const groupKey = pickRandom(keys);

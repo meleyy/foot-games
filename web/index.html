@@ -1,48 +1,29 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="fr">
   <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Foot Games — CDM 2026</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Foot Games · CDM 2026</title>
     <link rel="stylesheet" href="/css/fonts.css" />
-    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/css/tokens.css" />
+    <link rel="stylesheet" href="/css/game.css" />
   </head>
   <body>
-    <div class="page">
-      <header class="hero">
+    <div class="bg-pattern" aria-hidden="true"></div>
+
+    <header class="site-header">
+      <p class="landing-tagline">CDM 2026 — FOOT GAMES</p>
+      <div class="brand">
+        <span class="brand-26">26</span>
         <div>
-          <p class="eyebrow">Foot Games · test local</p>
-          <h1>Coupe du Monde 2026</h1>
-          <p class="subtitle">
-            Effectifs officiels CDM 2026 (ESPN) enrichis avec les notes FIFA Index FC 26.
-          </p>
-          <p class="subtitle"><a href="/game.html">▶ Jouer au mode solo 7-a-side</a></p>
+          <strong>FOOT GAMES</strong>
+          <span>World Cup draft</span>
         </div>
-        <div class="stats" id="stats"></div>
-      </header>
+      </div>
+    </header>
 
-      <main>
-        <p class="rating-meta" id="rating-meta"></p>
-        <section class="groups" id="groups" aria-live="polite"></section>
-      </main>
+    <main id="app" class="app-shell" data-phase="home"></main>
 
-      <aside class="panel hidden" id="panel" aria-hidden="true">
-        <div class="panel-backdrop" data-close></div>
-        <div class="panel-card" role="dialog" aria-modal="true" aria-labelledby="panel-title">
-          <header class="panel-header">
-            <div>
-              <p class="eyebrow">Effectif</p>
-              <h2 id="panel-title"></h2>
-            </div>
-            <button class="icon-button" type="button" data-close aria-label="Fermer">
-              ×
-            </button>
-          </header>
-          <div class="panel-body" id="panel-body"></div>
-        </div>
-      </aside>
-    </div>
-
-    <script type="module" src="/app.js"></script>
+    <script type="module" src="/js/game-app.js"></script>
   </body>
 </html>

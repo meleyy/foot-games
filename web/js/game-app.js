@@ -9,6 +9,7 @@ import {
   groupStandings,
   pickRandomGroup,
   ratingOvr,
+  rollDraftNation,
   roundRobinPairs,
   simulateKnockoutRound,
   simulateMatch,
@@ -21,10 +22,12 @@ const state = {
   data: null,
   phase: "home",
   formation: null,
+  gameMode: "classic",
   squadName: "Mon équipe",
   assignments: {},
   draftNations: [],
   pickIndex: 0,
+  rollsLeft: 3,
   selectedPlayer: null,
   groupKey: null,
   replacedTeam: null,
@@ -71,6 +74,19 @@ function formationById(id) {
   return FORMATIONS.find((formation) => formation.id === id) ?? FORMATIONS[0];
 }
 
+const GAME_MODES = [
+  { id: "classic", label: "Classique" },
+  { id: "memory", label: "From memory" },
+];
+
+function gameModeById(id) {
+  return GAME_MODES.find((mode) => mode.id === id) ?? GAME_MODES[0];
+}
+
+function gameModeLabel(id) {
+  return gameModeById(id).label;
+}
+
 function teamRoster(teamName) {
   return state.data.teams.find((team) => team.name === teamName)?.players ?? [];
 }
@@ -97,6 +113,7 @@ function createParticipant(id, name, squad, isUser = false) {
 function render() {
   const app = $("#app");
   app.dataset.phase = state.phase;
+  document.body.classList.toggle("is-home", state.phase === "home");
   app.classList.remove("is-ready");
   app.classList.add("is-changing");
 
@@ -106,10 +123,14 @@ function render() {
       $("#start-btn")?.addEventListener("click", () => {
         state.phase = "setup";
         state.formation = formationById("4-3-3");
+        state.gameMode = "classic";
         render();
       });
       break;
     case "setup":
+      if (!state.formation) {
+        state.formation = formationById("4-3-3");
+      }
       app.innerHTML = renderSetup();
       bindSetup();
       break;
@@ -135,20 +156,154 @@ function render() {
   });
 }
 
-function renderHome() {
+function landingStatsLine() {
+  if (!state.data) {
+    return "48 sélections · 11 joueurs · Draft CDM 2026";
+  }
+
+  const nations = state.data.nations?.length ?? 0;
+  const teams = state.data.teams?.length ?? 0;
+  const players = state.data.teams?.reduce(
+    (total, team) => total + (team.players?.length ?? 0),
+    0,
+  );
+
+  return `${nations} sélections · ${teams} équipes · ${players.toLocaleString("fr-FR")} joueurs`;
+}
+
+function allRosterPlayers() {
+  return (
+    state.data?.teams.flatMap((team) =>
+      team.players.map((player) => ({ ...player, teamName: team.name })),
+    ) ?? []
+  );
+}
+
+function landingSquadAssignments(formation) {
+  const squad = buildAiSquad(allRosterPlayers(), formation);
+  const assignments = {};
+
+  formation.slots.forEach((slot, index) => {
+    if (squad[index]) {
+      assignments[slot.id] = squad[index];
+    }
+  });
+
+  return assignments;
+}
+
+function playerLastName(name) {
+  return name?.split(" ").at(-1) ?? "";
+}
+
+function squadNumberForSlot(formation, slot) {
+  const index = formation?.slots?.findIndex((entry) => entry.id === slot.id) ?? -1;
+  return index >= 0 ? index + 1 : "";
+}
+
+function pitchSlotInnerHTML(slot, { player = null, preview = false, formation = null } = {}) {
+  if (player) {
+    const number = formation ? squadNumberForSlot(formation, slot) : "";
+    return `
+      <span class="slot-disc" aria-hidden="true"><span class="slot-number">${number}</span></span>
+      <span class="slot-name">${playerLastName(player.name)}</span>
+    `;
+  }
+
+  if (preview) {
+    return `<span class="slot-disc"><span class="slot-role">${slot.label}</span></span>`;
+  }
+
   return `
-    <section class="panel hero-panel">
-      <div class="hero-badge">26</div>
-      <h1>Foot Games</h1>
-      <p class="lede">Mode solo · Draft CDM 2026</p>
-      <p class="copy">
-        11 pays tirés au hasard, 11 joueurs à choisir.
-        Compose ton 11 selon ta formation, puis simule la Coupe du Monde.
-      </p>
-      <div class="actions">
-        <button class="btn btn-primary" id="start-btn">Jouer en solo</button>
-        <a class="btn btn-ghost" href="/">Voir les données</a>
+    <span class="slot-disc"><span class="slot-empty">+</span></span>
+    <span class="slot-name slot-name--hint">${slot.label}</span>
+  `;
+}
+
+function renderLandingPitchSlots(formation) {
+  const assignments = landingSquadAssignments(formation);
+
+  return formation.slots
+    .map((slot, index) => {
+      const player = assignments[slot.id];
+      const delay = `animation-delay:${index * 0.04}s`;
+
+      return `
+        <div
+          class="pitch-slot pitch-slot-preview pitch-slot-demo role-${slot.role} is-filled anim-slot"
+          style="left:${slot.x}%;top:${slot.y}%;${delay}"
+        >
+          ${pitchSlotInnerHTML(slot, { player, formation })}
+        </div>
+      `;
+    })
+    .join("");
+}
+
+function renderHome() {
+  const formation = formationById("4-3-3");
+
+  return `
+    <section class="landing">
+      <div class="landing-hero">
+        <div class="landing-hero-copy anim-fade">
+          <div class="landing-display" aria-hidden="true">
+            <span class="landing-display-num">11</span>
+          </div>
+          <h1 class="landing-title">
+            Tire les dés.<br />
+            Compose ton onze<br />
+            de rêve.
+          </h1>
+          <p class="landing-lede">
+            11 nations tirées au sort, 11 joueurs à recruter.
+            3 relances par tour. Choisis ta formation, puis simule la Coupe du Monde jusqu'à la finale.
+          </p>
+          <div class="landing-cta">
+            <button class="btn btn-primary" id="start-btn">Jouer en solo →</button>
+            <button class="btn btn-ghost landing-cta-secondary" type="button" disabled>
+              Jouer en ligne (à venir)
+            </button>
+          </div>
+        </div>
+        <div class="landing-hero-visual anim-fade">
+          <div class="panel landing-pitch-card">
+            <p class="landing-pitch-label">${formation.label}</p>
+            <div class="pitch pitch-11 pitch-preview landing-pitch">
+              ${renderLandingPitchSlots(formation)}
+            </div>
+          </div>
+        </div>
       </div>
+
+      <div class="panel landing-steps">
+        <article class="landing-step">
+          <div class="landing-step-head">
+            <span class="landing-step-num">01</span>
+            <span class="landing-step-icon" aria-hidden="true"></span>
+          </div>
+          <h2 class="landing-step-title">Tirer</h2>
+          <p class="landing-step-copy">Un pays au sort à chaque tour · 3 relances</p>
+        </article>
+        <article class="landing-step">
+          <div class="landing-step-head">
+            <span class="landing-step-num">02</span>
+            <span class="landing-step-icon" aria-hidden="true"></span>
+          </div>
+          <h2 class="landing-step-title">Composer</h2>
+          <p class="landing-step-copy">Choisis un joueur par nation · Formation libre</p>
+        </article>
+        <article class="landing-step">
+          <div class="landing-step-head">
+            <span class="landing-step-num">03</span>
+            <span class="landing-step-icon" aria-hidden="true"></span>
+          </div>
+          <h2 class="landing-step-title">Simuler</h2>
+          <p class="landing-step-copy">Phase de groupes puis tableau à élimination directe</p>
+        </article>
+      </div>
+
+      <p class="landing-stats">${landingStatsLine()}</p>
     </section>
   `;
 }
@@ -158,45 +313,79 @@ function renderSetup() {
     (formation, index) => `
       <button
         type="button"
-        class="formation-pill anim-stagger"
-        style="animation-delay:${index * 0.05}s"
+        class="option-pill formation-pill anim-stagger"
+        style="animation-delay:${index * 0.04}s"
         data-formation="${formation.id}"
         ${state.formation?.id === formation.id ? 'aria-pressed="true"' : ""}
       >
-        <span class="formation-title">${formation.label}</span>
+        <span class="option-pill-label">${formation.label}</span>
+      </button>
+    `,
+  ).join("");
+
+  const modes = GAME_MODES.map(
+    (mode) => `
+      <button
+        type="button"
+        class="option-pill mode-pill"
+        data-mode="${mode.id}"
+        ${state.gameMode === mode.id ? 'aria-pressed="true"' : ""}
+      >
+        <span class="option-pill-label">${mode.label}</span>
       </button>
     `,
   ).join("");
 
   return `
-    <section class="panel setup-panel">
-      <header class="panel-head">
-        <span class="step">01</span>
-        <div>
-          <h2>Formation</h2>
-          <p>Choisis ton système de jeu. Le groupe CDM sera tiré au hasard.</p>
+    <section class="draft-board setup-board">
+      <header class="draft-top">
+        <div class="draft-top-head">
+          <span class="step">01</span>
+          <h2 class="draft-top-label">Formation · Préparation</h2>
         </div>
+        <p class="draft-hint">Choisis ton système de jeu. Le groupe CDM sera tiré au hasard.</p>
       </header>
-      <div class="setup-layout">
-        <div class="setup-side">
-          <label class="field">
-            <span>Nom de l'équipe</span>
-            <input id="squad-name" value="${state.squadName}" maxlength="24" />
+      <div class="draft-columns setup-columns">
+        <div class="panel draft-zone draft-zone-setup-side anim-slide-left">
+          <label class="setup-team-field field">
+            <span class="nation-label">Nom de l'équipe</span>
+            <input
+              id="squad-name"
+              class="setup-team-input"
+              value="${state.squadName}"
+              maxlength="24"
+            />
           </label>
-          <div class="formation-picker">
-            <span class="field-label">Système</span>
-            <div class="formation-list">${formations}</div>
+
+          <div class="setup-options" id="setup-options-panel">
+            <div class="setup-option-group">
+              <span class="nation-label">Formation</span>
+              <div class="formation-grid" id="setup-formation-list">${formations}</div>
+            </div>
+            <div class="setup-option-group">
+              <span class="nation-label">Mode</span>
+              <div class="mode-grid" id="setup-mode-list">${modes}</div>
+            </div>
           </div>
+
           <div class="actions setup-actions">
             <button class="btn btn-ghost" id="back-home">Retour</button>
             <button class="btn btn-primary" id="start-draft">Lancer le draft</button>
           </div>
         </div>
-        <div class="setup-pitch-wrap draft-center anim-fade">
-          <h3 class="center-title" id="setup-formation-label">${state.formation?.label ?? "4-3-3"}</h3>
+
+        <div class="panel draft-zone draft-zone-pitch anim-fade">
           <div class="pitch pitch-11 pitch-preview" id="setup-pitch">
             ${renderPreviewSlots(state.formation, { animate: true })}
           </div>
+        </div>
+
+        <div class="panel draft-zone draft-zone-squad draft-zone-setup-summary anim-slide-right">
+          <header class="squad-head">
+            <h3 id="setup-formation-label">${state.formation?.label ?? "4-3-3"}</h3>
+          </header>
+          <p class="squad-progress" id="setup-mode-summary">${gameModeLabel(state.gameMode)} · 11 nations</p>
+          <p class="copy setup-copy">Valide ta formation pour démarrer le draft.</p>
         </div>
       </div>
     </section>
@@ -260,7 +449,7 @@ function renderPreviewSlots(formation, { animate = false } = {}) {
           data-slot-id="${slot.id}"
           style="left:${slot.x}%;top:${slot.y}%;${delay}"
         >
-          <span class="slot-role">${slot.label}</span>
+          ${pitchSlotInnerHTML(slot, { preview: true })}
         </div>
       `;
     })
@@ -310,12 +499,7 @@ function renderDraftPitchSlots(formation, { animate = false } = {}) {
           data-slot="${slot.id}"
           ${player ? "disabled" : ""}
         >
-          <span class="slot-role">${slot.label}</span>
-          ${
-            player
-              ? `<strong class="slot-player">${player.name.split(" ").at(-1)}</strong><span class="slot-ovr">${ratingOvr(player.rating)}</span>`
-              : `<span class="slot-empty">+</span>`
-          }
+          ${pitchSlotInnerHTML(slot, { player, formation })}
         </button>
       `;
     })
@@ -489,11 +673,7 @@ function updateDraftSlotPlacement(slotId, player) {
   button.disabled = true;
   button.classList.remove("is-compatible", "is-blocked", "is-empty-slot");
   button.classList.add("is-filled", "is-just-placed");
-  button.innerHTML = `
-    <span class="slot-role">${slot.label}</span>
-    <strong class="slot-player">${player.name.split(" ").at(-1)}</strong>
-    <span class="slot-ovr">${ratingOvr(player.rating)}</span>
-  `;
+  button.innerHTML = pitchSlotInnerHTML(slot, { player, formation: state.formation });
 
   window.setTimeout(() => button.classList.remove("is-just-placed"), 500);
 }
@@ -622,7 +802,24 @@ function bindScrollFades() {
   requestAnimationFrame(updateAllScrollFades);
 }
 
-function updateDraftPickHeader() {
+function updateRollUI() {
+  const button = $("#draft-roll");
+  const count = $("#draft-roll-count");
+
+  if (button) {
+    button.disabled = state.rollsLeft <= 0;
+  }
+
+  if (count) {
+    count.textContent = `${state.rollsLeft}/3`;
+  }
+}
+
+function updateDraftPickHeader({ resetRolls = false } = {}) {
+  if (resetRolls) {
+    state.rollsLeft = 3;
+  }
+
   const nation = state.draftNations[state.pickIndex];
   const progress = `${state.pickIndex + 1} / 11`;
   const title = $("#draft-progress");
@@ -656,6 +853,8 @@ function updateDraftPickHeader() {
     syncDraftRowHeight();
     requestAnimationFrame(updateAllScrollFades);
   }
+
+  updateRollUI();
 }
 
 function renderPitch({ mode = "draft", formation = state.formation } = {}) {
@@ -691,7 +890,7 @@ function renderPitch({ mode = "draft", formation = state.formation } = {}) {
                 class="pitch-slot pitch-slot-preview role-${slot.role} anim-slot"
                 style="${posStyle}"
               >
-                <span class="slot-role">${slot.label}</span>
+                ${pitchSlotInnerHTML(slot, { preview: true })}
               </div>
             `;
           }
@@ -704,12 +903,7 @@ function renderPitch({ mode = "draft", formation = state.formation } = {}) {
               data-slot="${slot.id}"
               ${player ? "disabled" : ""}
             >
-              <span class="slot-role">${slot.label}</span>
-              ${
-                player
-                  ? `<strong class="slot-player">${player.name.split(" ").at(-1)}</strong><span class="slot-ovr">${ratingOvr(player.rating)}</span>`
-                  : `<span class="slot-empty">+</span>`
-              }
+              ${pitchSlotInnerHTML(slot, { player, formation })}
             </button>
           `;
         })
@@ -739,8 +933,21 @@ function renderDraft() {
       <div class="draft-columns">
         <div class="panel draft-zone draft-zone-players-head anim-slide-left">
           <div class="nation-banner anim-nation" id="draft-nation-banner">
-            <span class="nation-label" id="draft-nation-label">Pays ${progress}</span>
-            <strong id="draft-nation-name">${nation ?? "—"}</strong>
+            <div class="nation-banner-main">
+              <div class="nation-banner-copy">
+                <span class="nation-label" id="draft-nation-label">Pays ${progress}</span>
+                <strong id="draft-nation-name">${nation ?? "—"}</strong>
+              </div>
+              <button
+                type="button"
+                class="btn-roll"
+                id="draft-roll"
+                ${state.rollsLeft <= 0 ? "disabled" : ""}
+              >
+                <span class="btn-roll-label">Relancer</span>
+                <span class="btn-roll-count" id="draft-roll-count">${state.rollsLeft}/3</span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -868,7 +1075,7 @@ function renderResult() {
       </div>
       <div class="actions">
         <button class="btn btn-primary" id="play-again">Rejouer</button>
-        <a class="btn btn-ghost" href="/game.html">Accueil jeu</a>
+        <a class="btn btn-ghost" href="/">Accueil</a>
       </div>
     </section>
   `;
@@ -877,6 +1084,10 @@ function renderResult() {
 function bindSetup() {
   if (!state.formation) {
     state.formation = formationById("4-3-3");
+  }
+
+  if (!state.gameMode) {
+    state.gameMode = "classic";
   }
 
   $$("[data-formation]").forEach((pill) => {
@@ -905,6 +1116,35 @@ function bindSetup() {
     });
   });
 
+  $$("[data-mode]").forEach((pill) => {
+    pill.classList.toggle("is-selected", pill.dataset.mode === state.gameMode);
+    pill.setAttribute(
+      "aria-pressed",
+      pill.dataset.mode === state.gameMode ? "true" : "false",
+    );
+
+    pill.addEventListener("click", () => {
+      if (pill.dataset.mode === state.gameMode) {
+        return;
+      }
+
+      state.gameMode = pill.dataset.mode;
+
+      $$("[data-mode]").forEach((entry) => {
+        entry.classList.toggle("is-selected", entry.dataset.mode === state.gameMode);
+        entry.setAttribute(
+          "aria-pressed",
+          entry.dataset.mode === state.gameMode ? "true" : "false",
+        );
+      });
+
+      const summary = $("#setup-mode-summary");
+      if (summary) {
+        summary.textContent = `${gameModeLabel(state.gameMode)} · 11 nations`;
+      }
+    });
+  });
+
   $("#squad-name")?.addEventListener("input", (event) => {
     state.squadName = event.target.value.trim() || "Mon équipe";
   });
@@ -917,12 +1157,15 @@ function bindSetup() {
   $("#start-draft")?.addEventListener("click", () => {
     startDraft();
   });
+
+  requestAnimationFrame(syncDraftRowHeight);
 }
 
 function startDraft() {
   state.phase = "draft";
   state.assignments = {};
   state.pickIndex = 0;
+  state.rollsLeft = 3;
   state.selectedPlayer = null;
   state.draftNations = drawUniqueNations(state.data.nations, 11);
   render();
@@ -935,6 +1178,28 @@ function bindDraft() {
   bindScrollFades();
   bindDraftRowHeightSync();
   requestAnimationFrame(syncDraftRowHeight);
+
+  $("#draft-roll")?.addEventListener("click", () => {
+    if (state.rollsLeft <= 0) {
+      return;
+    }
+
+    const nextNation = rollDraftNation(
+      state.draftNations,
+      state.data.nations,
+      state.pickIndex,
+    );
+
+    if (!nextNation) {
+      return;
+    }
+
+    state.draftNations[state.pickIndex] = nextNation;
+    state.rollsLeft -= 1;
+    state.selectedPlayer = null;
+    updateDraftPickHeader();
+    updateDraftSelectionUI();
+  });
 
   playerList?.addEventListener("click", (event) => {
     const button = event.target.closest("[data-pick]");
@@ -999,7 +1264,7 @@ function bindDraft() {
       return;
     }
 
-    updateDraftPickHeader();
+    updateDraftPickHeader({ resetRolls: true });
     updateDraftSelectionUI();
   });
 }
@@ -1167,6 +1432,7 @@ function bindResult() {
     state.phase = "setup";
     state.assignments = {};
     state.pickIndex = 0;
+    state.rollsLeft = 3;
     state.selectedPlayer = null;
     state.tournament = null;
     state.groupKey = null;

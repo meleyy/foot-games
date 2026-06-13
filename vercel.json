@@ -3,5 +3,8 @@
   "outputDirectory": "web",
   "rewrites": [
     { "source": "/", "destination": "/index.html" }
+  ],
+  "redirects": [
+    { "source": "/game.html", "destination": "/", "permanent": true }
   ]
 }
