@@ -536,7 +536,7 @@ function penaltyKick(shooter, keeper) {
   return Math.random() < probability;
 }
 
-export { simulateKnockoutMatch, simulatePenaltyShootout } from "../../shared/knockout-simulation.mjs";
+export { simulateKnockoutMatch, simulatePenaltyShootout } from "./knockout-simulation.mjs";
 
 export function simulateMatch(profileA, profileB, options = {}) {
   const { allowDraw = true } = options;
