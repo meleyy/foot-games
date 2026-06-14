@@ -3059,6 +3059,72 @@ body.is-home .site-header {
   font-weight: 800;
 }
 
+.online-history-block {
+  margin-top: var(--space-3);
+}
+
+.online-card-title {
+  margin: 0 0 var(--space-2);
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.online-history-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.online-history-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: var(--space-2);
+  align-items: center;
+  font-size: 0.85rem;
+}
+
+.online-history-opponent {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.online-elo-delta {
+  font-weight: 800;
+  min-width: 2.5rem;
+  text-align: right;
+}
+
+.online-history-row.is-win .online-elo-delta {
+  color: #0f7a3b;
+}
+
+.online-history-row.is-loss .online-elo-delta {
+  color: #b42318;
+}
+
+.online-result-scorers {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  width: 100%;
+  margin-top: var(--space-3);
+  text-align: left;
+}
+
+.online-result-scorers .run-scorer-line {
+  display: block;
+}
+
+.online-elo-change {
+  margin-top: var(--space-2);
+}
+
 @media (max-width: 900px) {
   .online-result-panel .online-result-squads {
     grid-template-columns: 1fr;

@@ -3,9 +3,28 @@ import { SUPABASE_ANON_KEY, SUPABASE_URL } from "./supabase-config.js";
 
 const PLAYER_ID_KEY = "foot-games-player-id";
 
-export function getOrCreatePlayerId() {
-  const existing = sessionStorage.getItem(PLAYER_ID_KEY);
+function createSupabase() {
+  return createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+}
 
+export async function ensureOnlinePlayerId(supabase = createSupabase()) {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  if (session?.user?.id) {
+    sessionStorage.setItem(PLAYER_ID_KEY, session.user.id);
+    return session.user.id;
+  }
+
+  const { data, error } = await supabase.auth.signInAnonymously();
+
+  if (!error && data.user?.id) {
+    sessionStorage.setItem(PLAYER_ID_KEY, data.user.id);
+    return data.user.id;
+  }
+
+  const existing = sessionStorage.getItem(PLAYER_ID_KEY);
   if (existing) {
     return existing;
   }
@@ -15,14 +34,15 @@ export function getOrCreatePlayerId() {
   return id;
 }
 
-function createSupabase() {
-  return createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+export function getOrCreatePlayerId() {
+  return sessionStorage.getItem(PLAYER_ID_KEY) ?? crypto.randomUUID();
 }
 
-export async function fetchActiveOnlineMatch(playerId = getOrCreatePlayerId()) {
+export async function fetchActiveOnlineMatch(playerId) {
   const supabase = createSupabase();
+  const resolvedPlayerId = playerId ?? (await ensureOnlinePlayerId(supabase));
   const { data, error } = await supabase.rpc("heartbeat_matchmaking_queue", {
-    p_player_id: playerId,
+    p_player_id: resolvedPlayerId,
   });
 
   if (error) {
@@ -30,11 +50,10 @@ export async function fetchActiveOnlineMatch(playerId = getOrCreatePlayerId()) {
   }
 
   if (data?.status === "matched" && data.match_id) {
-    const { data: match, error: matchError } = await supabase
-      .from("online_matches")
-      .select("status")
-      .eq("id", data.match_id)
-      .maybeSingle();
+    const { data: match, error: matchError } = await supabase.rpc("get_online_match", {
+      p_match_id: data.match_id,
+      p_player_id: resolvedPlayerId,
+    });
 
     if (matchError || !match || !["draft", "resolving"].includes(match.status)) {
       return null;
@@ -54,15 +73,26 @@ export class OnlineClient {
    */
   constructor(handlers) {
     this.handlers = handlers;
-    this.playerId = getOrCreatePlayerId();
     this.supabase = createSupabase();
+    this.playerId = null;
+    this.ready = this.bootstrap();
     /** @type {import("@supabase/supabase-js").RealtimeChannel | null} */
     this.channel = null;
     /** @type {number | null} */
     this.heartbeatTimer = null;
     this.activeMatchId = null;
+    /** @type {number | null} */
+    this.pollTimer = null;
     /** @type {object | null} */
     this.lastKnownMatch = null;
+  }
+
+  async bootstrap() {
+    this.playerId = await ensureOnlinePlayerId(this.supabase);
+  }
+
+  async ensureReady() {
+    await this.ready;
   }
 
   emitMatchUpdate(match) {
@@ -70,7 +100,35 @@ export class OnlineClient {
     this.handlers.onMatchUpdate?.(this.lastKnownMatch);
   }
 
+  async fetchPlayerStats() {
+    await this.ensureReady();
+    const { data, error } = await this.supabase.rpc("get_online_player_stats", {
+      p_player_id: this.playerId,
+    });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return data;
+  }
+
+  async fetchMatchHistory(limit = 8) {
+    await this.ensureReady();
+    const { data, error } = await this.supabase.rpc("get_online_match_history", {
+      p_player_id: this.playerId,
+      p_limit: limit,
+    });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return data?.matches ?? [];
+  }
+
   async joinQueue(displayName) {
+    await this.ensureReady();
     const { data, error } = await this.supabase.rpc("join_matchmaking_queue", {
       p_player_id: this.playerId,
       p_display_name: displayName,
@@ -92,6 +150,7 @@ export class OnlineClient {
   startQueueHeartbeat() {
     this.stopQueueHeartbeat();
     this.heartbeatTimer = window.setInterval(async () => {
+      await this.ensureReady();
       const { data, error } = await this.supabase.rpc("heartbeat_matchmaking_queue", {
         p_player_id: this.playerId,
       });
@@ -115,26 +174,34 @@ export class OnlineClient {
   }
 
   async leaveQueue() {
+    await this.ensureReady();
     this.stopQueueHeartbeat();
     await this.supabase.rpc("leave_matchmaking_queue", {
       p_player_id: this.playerId,
     });
   }
 
-  async watchMatch(matchId) {
-    this.stopQueueHeartbeat();
-    this.activeMatchId = matchId;
-    this.unsubscribe();
-
-    const { data: match, error } = await this.supabase
-      .from("online_matches")
-      .select("*")
-      .eq("id", matchId)
-      .maybeSingle();
+  async fetchMatch(matchId) {
+    await this.ensureReady();
+    const { data, error } = await this.supabase.rpc("get_online_match", {
+      p_match_id: matchId,
+      p_player_id: this.playerId,
+    });
 
     if (error) {
       throw new Error(error.message);
     }
+
+    return data;
+  }
+
+  async watchMatch(matchId) {
+    await this.ensureReady();
+    this.stopQueueHeartbeat();
+    this.activeMatchId = matchId;
+    this.unsubscribe();
+
+    const match = await this.fetchMatch(matchId);
 
     if (match) {
       this.emitMatchUpdate(match);
@@ -158,9 +225,12 @@ export class OnlineClient {
         },
       )
       .subscribe();
+
+    this.startMatchPolling(matchId);
   }
 
   unsubscribe() {
+    this.stopMatchPolling();
     if (this.channel) {
       void this.supabase.removeChannel(this.channel);
       this.channel = null;
@@ -168,6 +238,7 @@ export class OnlineClient {
   }
 
   async saveDraftProgress({ matchId, formationId, draftState }) {
+    await this.ensureReady();
     const { error } = await this.supabase.rpc("save_online_draft_progress", {
       p_match_id: matchId,
       p_player_id: this.playerId,
@@ -181,6 +252,7 @@ export class OnlineClient {
   }
 
   async checkDraftExpiry(matchId) {
+    await this.ensureReady();
     const { data, error } = await this.supabase.rpc("check_online_draft_expiry", {
       p_match_id: matchId,
     });
@@ -190,13 +262,9 @@ export class OnlineClient {
     }
 
     if (data?.status && data.status !== "draft") {
-      const { data: match, error: fetchError } = await this.supabase
-        .from("online_matches")
-        .select("*")
-        .eq("id", matchId)
-        .maybeSingle();
+      const match = await this.fetchMatch(matchId);
 
-      if (!fetchError && match) {
+      if (match) {
         this.emitMatchUpdate(match);
       } else {
         this.emitMatchUpdate({
@@ -211,6 +279,7 @@ export class OnlineClient {
   }
 
   async submitDraft({ matchId, formationId, assignments }) {
+    await this.ensureReady();
     const { data, error } = await this.supabase.rpc("submit_online_draft", {
       p_match_id: matchId,
       p_player_id: this.playerId,
@@ -230,6 +299,7 @@ export class OnlineClient {
   }
 
   async resolveMatch(matchId) {
+    await this.ensureReady();
     const { data, error } = await this.supabase.functions.invoke("resolve-online-match", {
       body: {
         match_id: matchId,
@@ -242,11 +312,17 @@ export class OnlineClient {
     }
 
     if (data?.result) {
-      this.emitMatchUpdate({
-        id: matchId,
-        status: data.status ?? "result",
-        result: data.result,
-      });
+      const match = await this.fetchMatch(matchId);
+
+      if (match) {
+        this.emitMatchUpdate(match);
+      } else {
+        this.emitMatchUpdate({
+          id: matchId,
+          status: data.status ?? "result",
+          result: data.result,
+        });
+      }
     }
 
     return data;
@@ -281,10 +357,32 @@ export class OnlineClient {
   }
 
   async disconnect() {
+    await this.ensureReady();
     this.stopQueueHeartbeat();
     this.unsubscribe();
     await this.leaveQueue();
     this.activeMatchId = null;
     this.lastKnownMatch = null;
+  }
+
+  stopMatchPolling() {
+    if (this.pollTimer) {
+      clearInterval(this.pollTimer);
+      this.pollTimer = null;
+    }
+  }
+
+  startMatchPolling(matchId) {
+    this.stopMatchPolling();
+    this.pollTimer = window.setInterval(async () => {
+      try {
+        const match = await this.fetchMatch(matchId);
+        if (match) {
+          this.emitMatchUpdate(match);
+        }
+      } catch {
+        // Ignore transient polling errors.
+      }
+    }, 3000);
   }
 }

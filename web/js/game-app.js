@@ -55,6 +55,8 @@ const state = {
   onlineMatch: null,
   onlineError: null,
   onlineDraftDeadline: null,
+  onlineStats: null,
+  onlineHistory: [],
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -276,6 +278,55 @@ function squadAverageFromAssignments(assignments) {
   }
 
   return squadStrength(players);
+}
+
+function formatEloDelta(delta) {
+  if (delta == null || delta === 0) {
+    return "±0";
+  }
+
+  return delta > 0 ? `+${delta}` : `${delta}`;
+}
+
+function renderOnlineHistory(history, playerId) {
+  if (!history?.length) {
+    return `<p class="copy online-history-empty">Aucun match joué pour l'instant.</p>`;
+  }
+
+  return `
+    <ol class="online-history-list">
+      ${history
+        .map((row) => {
+          const isPlayerA = row.player_a_id === playerId;
+          const youGoals = isPlayerA ? row.home_goals : row.away_goals;
+          const oppGoals = isPlayerA ? row.away_goals : row.home_goals;
+          const opponent = isPlayerA ? row.player_b_name : row.player_a_name;
+          const delta = isPlayerA ? row.player_a_elo_delta : row.player_b_elo_delta;
+          const won = row.winner_id === playerId;
+          const lost = Boolean(row.winner_id) && row.winner_id !== playerId;
+
+          return `
+            <li class="online-history-row ${won ? "is-win" : lost ? "is-loss" : ""}">
+              <span class="online-history-opponent">${opponent}</span>
+              <strong class="online-history-score">${youGoals}–${oppGoals}</strong>
+              <span class="online-elo-delta">${formatEloDelta(delta)}</span>
+            </li>
+          `;
+        })
+        .join("")}
+    </ol>
+  `;
+}
+
+async function loadOnlineProfile() {
+  try {
+    const client = ensureOnlineClient();
+    state.onlineStats = await client.fetchPlayerStats();
+    state.onlineHistory = await client.fetchMatchHistory(6);
+  } catch {
+    state.onlineStats = null;
+    state.onlineHistory = [];
+  }
 }
 
 function renderFormationPills({ selectedId, buttonClass = "formation-pill" } = {}) {
@@ -994,11 +1045,20 @@ async function enterOnlineSetup() {
   state.squadName = loadOnlineDisplayName();
   state.formation = formationById(loadOnlineFormationId());
   state.onlineError = null;
+  state.onlineStats = null;
+  state.onlineHistory = [];
   render();
+  void loadOnlineProfile().then(() => {
+    if (state.phase === "online-setup") {
+      render();
+    }
+  });
 }
 
 function renderOnlineSetup() {
   const draftMinutes = Math.floor(ONLINE_DRAFT_SECONDS / 60);
+  const stats = state.onlineStats;
+  const client = onlineClient();
 
   return `
     <section class="draft-board setup-board online-setup-board">
@@ -1048,10 +1108,19 @@ function renderOnlineSetup() {
 
         <div class="panel draft-zone draft-zone-squad draft-zone-setup-summary">
           <header class="squad-head">
-            <h3>${state.formation?.label ?? "4-3-3"}</h3>
+            <h3>${stats ? `ELO ${stats.elo}` : "Classement"}</h3>
           </header>
-          <p class="squad-progress">Matchmaking automatique</p>
-          <p class="copy setup-copy">Tu affronteras un adversaire aléatoire en file d'attente.</p>
+          <p class="squad-progress">
+            ${
+              stats
+                ? `${stats.wins}V · ${stats.losses}D · ${stats.draws}N · ${stats.matches_played} matchs`
+                : "Chargement du profil…"
+            }
+          </p>
+          <div class="online-history-block">
+            <h4 class="online-card-title">Historique</h4>
+            ${renderOnlineHistory(state.onlineHistory, client?.playerId)}
+          </div>
         </div>
       </div>
     </section>
@@ -1145,6 +1214,16 @@ function renderOnlineResult() {
   const forfeit = result?.reason === "forfeit";
   const abandoned = result?.reason === "abandoned";
   const showSquads = !abandoned && match?.player_a_assignments && match?.player_b_assignments;
+  const yourScorers = isPlayerA ? result?.scorersA : result?.scorersB;
+  const oppScorers = isPlayerA ? result?.scorersB : result?.scorersA;
+  const yourElo = result?.elo?.[isPlayerA ? "playerA" : "playerB"];
+  const scorersBlock =
+    !abandoned && (yourScorers?.length || oppScorers?.length)
+      ? `<div class="online-result-scorers">
+          ${renderScorerLine("Tes buteurs", yourScorers ?? [])}
+          ${renderScorerLine("Adversaire", oppScorers ?? [])}
+        </div>`
+      : "";
 
   return `
     <section class="panel hero-panel online-result-panel ${won ? "is-win" : draw ? "" : "is-loss"}">
@@ -1163,6 +1242,12 @@ function renderOnlineResult() {
             : result?.penalties
               ? `<p class="copy">Score après prolongation · tirs au but inclus.</p>`
               : ""
+      }
+      ${scorersBlock}
+      ${
+        yourElo
+          ? `<p class="copy online-elo-change">ELO ${yourElo.before} → <strong>${yourElo.after}</strong> (${formatEloDelta(yourElo.delta)})</p>`
+          : ""
       }
       ${
         showSquads

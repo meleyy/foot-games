@@ -536,90 +536,7 @@ function penaltyKick(shooter, keeper) {
   return Math.random() < probability;
 }
 
-export function simulatePenaltyShootout(teamA, teamB) {
-  const shootersA = pickPenaltyShooters(teamA.squad);
-  const shootersB = pickPenaltyShooters(teamB.squad);
-  const keeperA = pickGoalkeeper(teamA.squad);
-  const keeperB = pickGoalkeeper(teamB.squad);
-  const kicks = [];
-
-  let scoreA = 0;
-  let scoreB = 0;
-
-  for (let round = 0; round < 5; round += 1) {
-    const kickA = penaltyShotEvent(
-      shootersA[round % shootersA.length],
-      keeperB,
-      "home",
-      teamA.name,
-      round + 1,
-    );
-    kicks.push(kickA);
-    if (kickA.scored) {
-      scoreA += 1;
-    }
-
-    const kickB = penaltyShotEvent(
-      shootersB[round % shootersB.length],
-      keeperA,
-      "away",
-      teamB.name,
-      round + 1,
-    );
-    kicks.push(kickB);
-    if (kickB.scored) {
-      scoreB += 1;
-    }
-
-    const remaining = 4 - round;
-
-    if (scoreA > scoreB + remaining || scoreB > scoreA + remaining) {
-      return {
-        scoreA,
-        scoreB,
-        kicks,
-        winner: scoreA > scoreB ? teamA : teamB,
-      };
-    }
-  }
-
-  let suddenRound = 6;
-
-  while (scoreA === scoreB) {
-    const kickA = penaltyShotEvent(
-      shootersA[Math.floor(Math.random() * shootersA.length)],
-      keeperB,
-      "home",
-      teamA.name,
-      suddenRound,
-    );
-    kicks.push(kickA);
-    if (kickA.scored) {
-      scoreA += 1;
-    }
-
-    const kickB = penaltyShotEvent(
-      shootersB[Math.floor(Math.random() * shootersB.length)],
-      keeperA,
-      "away",
-      teamB.name,
-      suddenRound,
-    );
-    kicks.push(kickB);
-    if (kickB.scored) {
-      scoreB += 1;
-    }
-
-    suddenRound += 1;
-  }
-
-  return {
-    scoreA,
-    scoreB,
-    kicks,
-    winner: scoreA > scoreB ? teamA : teamB,
-  };
-}
+export { simulateKnockoutMatch, simulatePenaltyShootout } from "../../shared/knockout-simulation.mjs";
 
 export function simulateMatch(profileA, profileB, options = {}) {
   const { allowDraw = true } = options;
@@ -673,32 +590,6 @@ export function simulateGroupMatch(home, away) {
     awayId: away.id,
     penalties: null,
     winner: goalsA > goalsB ? home : goalsB > goalsA ? away : null,
-  };
-}
-
-export function simulateKnockoutMatch(home, away) {
-  const { goalsA, goalsB } = simulateMatch(home.profile, away.profile, {
-    allowDraw: false,
-  });
-  const events = buildMatchGoalEvents(home, away, goalsA, goalsB);
-  const scorersA = events.filter((event) => event.side === "home").map((event) => event.player);
-  const scorersB = events.filter((event) => event.side === "away").map((event) => event.player);
-  let penalties = null;
-  let winner = goalsB > goalsA ? away : home;
-
-  if (goalsA === goalsB) {
-    penalties = simulatePenaltyShootout(home, away);
-    winner = penalties.winner;
-  }
-
-  return {
-    goalsA,
-    goalsB,
-    scorersA,
-    scorersB,
-    events,
-    penalties,
-    winner,
   };
 }
 
