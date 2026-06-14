@@ -1,18 +1,21 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Foot Games · CDM 2026</title>
+    <title>Foot Games · World Cup 2026</title>
+    <link rel="preload" href="/images/fond-site.jpg" as="image" />
+    <link rel="preload" href="/fonts/Eurostile_Black.otf" as="font" type="font/otf" crossorigin />
+    <link rel="preload" href="/fonts/Eurostile.otf" as="font" type="font/otf" crossorigin />
     <link rel="stylesheet" href="/css/fonts.css" />
     <link rel="stylesheet" href="/css/tokens.css" />
     <link rel="stylesheet" href="/css/game.css" />
   </head>
-  <body>
+  <body class="is-home">
     <div class="bg-pattern" aria-hidden="true"></div>
 
     <header class="site-header">
-      <p class="landing-tagline">CDM 2026 — FOOT GAMES</p>
+      <p class="landing-tagline">WC 2026 — FOOT GAMES</p>
       <div class="brand">
         <span class="brand-26">26</span>
         <div>
@@ -22,7 +25,79 @@
       </div>
     </header>
 
-    <main id="app" class="app-shell" data-phase="home"></main>
+    <main id="app" class="app-shell" data-phase="home">
+      <section class="landing">
+        <div class="landing-hero">
+          <div class="landing-hero-copy">
+            <div class="landing-display" aria-hidden="true">
+              <span class="landing-display-num">11</span>
+            </div>
+            <h1 class="landing-title">
+              Roll the dice.<br />
+              Build your dream<br />
+              eleven.
+            </h1>
+            <p class="landing-lede">
+              Draw 11 nations, draft 11 players.
+              3 rerolls per round. Pick your formation, then simulate the World Cup through to the final.
+            </p>
+            <div class="landing-cta">
+              <button class="btn btn-primary" id="start-btn">Play solo →</button>
+              <button class="btn btn-ghost landing-cta-secondary" type="button" id="online-btn">
+                Jouer en ligne 1v1 →
+              </button>
+            </div>
+          </div>
+          <div class="landing-hero-visual">
+            <div class="panel landing-pitch-card">
+              <p class="landing-pitch-label">4-3-3</p>
+              <div class="pitch pitch-11 pitch-preview landing-pitch" id="landing-pitch" aria-hidden="true">
+                <div class="pitch-slot pitch-slot-preview pitch-slot-demo role-GK is-filled" style="left:50%;top:92%"><span class="slot-disc"><span class="slot-empty">+</span></span><span class="slot-name slot-name--hint">GK</span></div>
+                <div class="pitch-slot pitch-slot-preview pitch-slot-demo role-DF is-filled" style="left:15%;top:74%"><span class="slot-disc"><span class="slot-empty">+</span></span><span class="slot-name slot-name--hint">LB</span></div>
+                <div class="pitch-slot pitch-slot-preview pitch-slot-demo role-DF is-filled" style="left:32%;top:76%"><span class="slot-disc"><span class="slot-empty">+</span></span><span class="slot-name slot-name--hint">LCB</span></div>
+                <div class="pitch-slot pitch-slot-preview pitch-slot-demo role-DF is-filled" style="left:68%;top:76%"><span class="slot-disc"><span class="slot-empty">+</span></span><span class="slot-name slot-name--hint">RCB</span></div>
+                <div class="pitch-slot pitch-slot-preview pitch-slot-demo role-DF is-filled" style="left:85%;top:74%"><span class="slot-disc"><span class="slot-empty">+</span></span><span class="slot-name slot-name--hint">RB</span></div>
+                <div class="pitch-slot pitch-slot-preview pitch-slot-demo role-MF is-filled" style="left:32%;top:52%"><span class="slot-disc"><span class="slot-empty">+</span></span><span class="slot-name slot-name--hint">LCM</span></div>
+                <div class="pitch-slot pitch-slot-preview pitch-slot-demo role-MF is-filled" style="left:50%;top:50%"><span class="slot-disc"><span class="slot-empty">+</span></span><span class="slot-name slot-name--hint">CM</span></div>
+                <div class="pitch-slot pitch-slot-preview pitch-slot-demo role-MF is-filled" style="left:68%;top:52%"><span class="slot-disc"><span class="slot-empty">+</span></span><span class="slot-name slot-name--hint">RCM</span></div>
+                <div class="pitch-slot pitch-slot-preview pitch-slot-demo role-FW is-filled" style="left:16%;top:26%"><span class="slot-disc"><span class="slot-empty">+</span></span><span class="slot-name slot-name--hint">LW</span></div>
+                <div class="pitch-slot pitch-slot-preview pitch-slot-demo role-FW is-filled" style="left:50%;top:22%"><span class="slot-disc"><span class="slot-empty">+</span></span><span class="slot-name slot-name--hint">ST</span></div>
+                <div class="pitch-slot pitch-slot-preview pitch-slot-demo role-FW is-filled" style="left:84%;top:26%"><span class="slot-disc"><span class="slot-empty">+</span></span><span class="slot-name slot-name--hint">RW</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel landing-steps">
+          <article class="landing-step">
+            <div class="landing-step-head">
+              <span class="landing-step-num">01</span>
+              <span class="landing-step-icon" aria-hidden="true"></span>
+            </div>
+            <h2 class="landing-step-title">Draft</h2>
+            <p class="landing-step-copy">One nation per round · 3 rerolls</p>
+          </article>
+          <article class="landing-step">
+            <div class="landing-step-head">
+              <span class="landing-step-num">02</span>
+              <span class="landing-step-icon" aria-hidden="true"></span>
+            </div>
+            <h2 class="landing-step-title">Build</h2>
+            <p class="landing-step-copy">Pick one player per nation · Any formation</p>
+          </article>
+          <article class="landing-step">
+            <div class="landing-step-head">
+              <span class="landing-step-num">03</span>
+              <span class="landing-step-icon" aria-hidden="true"></span>
+            </div>
+            <h2 class="landing-step-title">Simulate</h2>
+            <p class="landing-step-copy">Group stage then knockout bracket</p>
+          </article>
+        </div>
+
+        <p class="landing-stats" id="landing-stats">48 teams · 48 squads · 1,246 players</p>
+      </section>
+    </main>
 
     <script type="module" src="/js/game-app.js"></script>
   </body>

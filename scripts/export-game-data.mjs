@@ -4,7 +4,11 @@ import { fileURLToPath } from "node:url";
 
 import Database from "better-sqlite3";
 
-import { WORLD_CUP_2026_GROUPS } from "./world-cup-2026-teams.mjs";
+import {
+  WORLD_CUP_2026_GROUPS,
+  englishGroups,
+  englishNationName,
+} from "./world-cup-2026-teams.mjs";
 import { FORMATIONS } from "../web/js/game-engine.js";
 
 const rootDir = path.resolve(
@@ -22,7 +26,8 @@ export function buildGameBootstrap(db) {
          players.name AS player_name,
          players.position,
          players.position_code,
-         players.rating
+         players.rating,
+         players.shirt_number
        FROM teams
        JOIN players ON players.team_id = teams.api_id
        ORDER BY teams.name, players.rating DESC, players.name`,
@@ -45,6 +50,7 @@ export function buildGameBootstrap(db) {
       position: row.position,
       position_code: row.position_code,
       rating: row.rating ?? 5,
+      shirt_number: row.shirt_number ?? null,
     });
   }
 
@@ -55,16 +61,30 @@ export function buildGameBootstrap(db) {
     })),
   );
 
+  const englishTeams = [...teamsByName.values()].map((team) => ({
+  ...team,
+  name: englishNationName(team.name),
+  players: team.players.map((player) => ({
+    ...player,
+    teamName: englishNationName(team.name),
+  })),
+}));
+
+  const englishAllPlayers = allPlayers.map((player) => ({
+    ...player,
+    teamName: englishNationName(player.teamName),
+  }));
+
   return {
-    groups: WORLD_CUP_2026_GROUPS,
-    nations: Object.values(WORLD_CUP_2026_GROUPS).flat(),
+    groups: englishGroups(WORLD_CUP_2026_GROUPS),
+    nations: Object.values(WORLD_CUP_2026_GROUPS).flat().map(englishNationName),
     formations: FORMATIONS.map(({ id, label, slots }) => ({
       id,
       label,
       slots,
     })),
-    teams: [...teamsByName.values()],
-    allPlayers,
+    teams: englishTeams,
+    allPlayers: englishAllPlayers,
     playerCount: allPlayers.length,
     generatedAt: new Date().toISOString(),
   };

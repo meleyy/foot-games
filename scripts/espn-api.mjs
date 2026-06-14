@@ -84,7 +84,7 @@ export function normalizeEspnPlayer(athlete, teamId) {
   return {
     id: Number(athlete.id),
     teamId,
-    name: String(name),
+    name: String(name).trim(),
     age: Number.isFinite(athlete.age) ? athlete.age : null,
     number: Number.isFinite(shirtNumber) ? shirtNumber : null,
     position: athlete.position?.displayName ?? athlete.position?.name ?? null,

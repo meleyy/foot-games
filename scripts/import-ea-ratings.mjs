@@ -126,9 +126,11 @@ const upsertPlayer = db.prepare(`
 const updatePlayerRating = db.prepare(`
   UPDATE players
   SET
-    rating = @rating,
-    potential = @potential,
-    club = @club,
+    rating = COALESCE(@rating, rating),
+    potential = COALESCE(@potential, potential),
+    club = COALESCE(@club, club),
+    position = COALESCE(@position, position),
+    position_code = COALESCE(@position_code, position_code),
     imported_at = @imported_at
   WHERE api_id = @api_id
 `);
@@ -196,6 +198,7 @@ function saveTournamentData(teams, players, importedAt) {
 }
 
 async function enrichExistingRatings(grouped, importedAt) {
+  const positionsOnly = process.env.EA_POSITIONS_ONLY === "true";
   let updated = 0;
 
   for (const team of existingTeams()) {
@@ -217,28 +220,52 @@ async function enrichExistingRatings(grouped, importedAt) {
     for (const dbPlayer of dbPlayers) {
       const eaPlayer = findEaPlayerMatch(dbPlayer.name, eaPlayers);
 
-      if (!eaPlayer?.rating) {
+      if (!eaPlayer) {
         continue;
       }
 
-      updatePlayerRating.run({
-        api_id: dbPlayer.api_id,
-        rating: eaPlayer.rating,
-        potential: eaPlayer.potential,
-        club: eaPlayer.club,
-        imported_at: importedAt,
-      });
+      if (positionsOnly) {
+        if (!eaPlayer.position && !eaPlayer.club) {
+          continue;
+        }
+
+        updatePlayerRating.run({
+          api_id: dbPlayer.api_id,
+          rating: null,
+          potential: null,
+          club: eaPlayer.club,
+          position: eaPlayer.position,
+          position_code: eaPlayer.positionCode,
+          imported_at: importedAt,
+        });
+      } else if (eaPlayer.rating) {
+        updatePlayerRating.run({
+          api_id: dbPlayer.api_id,
+          rating: eaPlayer.rating,
+          potential: eaPlayer.potential,
+          club: eaPlayer.club,
+          position: eaPlayer.position,
+          position_code: eaPlayer.positionCode,
+          imported_at: importedAt,
+        });
+      } else {
+        continue;
+      }
+
       teamUpdated += 1;
       updated += 1;
     }
 
-    console.log(`${team.name}: ${teamUpdated} ratings updated`);
+    console.log(
+      `${team.name}: ${teamUpdated} ${positionsOnly ? "positions" : "ratings"} updated`,
+    );
   }
 
   return updated;
 }
 
 async function importEaRatings() {
+  const positionsOnly = process.env.EA_POSITIONS_ONLY === "true";
   console.log("Downloading EA FC player ratings...");
 
   const rawPlayers = await client.fetchAllPlayers((loaded, total) => {
@@ -296,7 +323,11 @@ async function importEaRatings() {
   let ratingsCount = 0;
 
   if (enrichOnly && hasExistingPlayers > 0) {
-    console.log("Existing players found, enriching ratings only...");
+    console.log(
+      positionsOnly
+        ? "Existing players found, enriching positions/clubs only..."
+        : "Existing players found, enriching ratings only...",
+    );
     ratingsCount = await enrichExistingRatings(grouped, importedAt);
     teamsCount = existingTeams().length;
     playersCount = hasExistingPlayers;

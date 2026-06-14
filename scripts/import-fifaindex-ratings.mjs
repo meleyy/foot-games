@@ -123,9 +123,16 @@ async function importFifaIndexRatings() {
 
       const squadPlayers = dbPlayers.map((player) => ({ ...player }));
       const matched = matchRatingsToSquad(squadPlayers, fifaPlayers);
+      let teamUpdated = 0;
 
       for (const player of squadPlayers) {
         if (player.rating == null) {
+          continue;
+        }
+
+        const existing = dbPlayers.find((entry) => entry.api_id === player.api_id);
+
+        if (existing?.rating != null) {
           continue;
         }
 
@@ -135,12 +142,13 @@ async function importFifaIndexRatings() {
           potential: player.potential,
           imported_at: importedAt,
         });
+        teamUpdated += 1;
       }
 
-      totalUpdated += matched;
+      totalUpdated += teamUpdated;
       console.log(
-        `${team.name}: ${matched}/${dbPlayers.length} ratings ` +
-          `(FIFA Index squad: ${fifaPlayers.length})`,
+        `${team.name}: ${teamUpdated}/${dbPlayers.length} fallback ratings ` +
+          `(${matched} FIFA Index matches, squad: ${fifaPlayers.length})`,
       );
 
       if (requestDelayMs > 0) {
@@ -153,7 +161,10 @@ async function importFifaIndexRatings() {
 
   const playersCount = db.prepare(`SELECT COUNT(*) AS count FROM players`).get()
     .count;
-  const defaultApplied = applyDefaultMissingRatings(db, new Date().toISOString());
+  const defaultApplied =
+    process.env.FIFAINDEX_APPLY_DEFAULTS === "true"
+      ? applyDefaultMissingRatings(db, new Date().toISOString())
+      : 0;
   const ratingsCount = db
     .prepare(`SELECT COUNT(*) AS count FROM players WHERE rating IS NOT NULL`)
     .get().count;
@@ -172,7 +183,7 @@ async function importFifaIndexRatings() {
 
   console.log("");
   console.log(
-    `FIFA Index import complete: ${totalUpdated} ratings updated, ` +
+    `FIFA Index import complete: ${totalUpdated} fallback ratings applied, ` +
       `${defaultApplied} defaults at 50 OVR, ` +
       `${ratingsCount}/${playersCount} players with a rating.`,
   );

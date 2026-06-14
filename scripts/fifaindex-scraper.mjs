@@ -6,8 +6,10 @@ import * as cheerio from "cheerio";
 import { chromium } from "playwright";
 
 import { ESPN_TO_FRENCH } from "./world-cup-2026-teams.mjs";
-import { findEaPlayerMatch } from "./name-match.mjs";
 import { normalizeName } from "./ea-ratings-api.mjs";
+import { matchRatingsToSquad } from "./ratings-match.mjs";
+
+export { matchRatingsToSquad };
 
 const rootDir = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -278,25 +280,7 @@ export async function scrapeTeamRatings(page, frenchTeamName) {
   return parseTeamHtml(html);
 }
 
-export function matchRatingsToSquad(squadPlayers, fifaPlayers) {
-  const ratingByName = new Map(
-    fifaPlayers.map((player) => [normalizeName(player.name), player]),
-  );
-  let matched = 0;
-
-  for (const player of squadPlayers) {
-    const fifaPlayer =
-      ratingByName.get(normalizeName(player.name)) ??
-      findEaPlayerMatch(player.name, fifaPlayers);
-
-    if (!fifaPlayer?.rating) {
-      continue;
-    }
-
-    player.rating = fifaPlayer.rating;
-    player.potential = fifaPlayer.potential;
-    matched += 1;
-  }
-
-  return matched;
+/** @deprecated Import from ratings-match.mjs */
+export function matchRatingsToSquadLegacy(squadPlayers, fifaPlayers) {
+  return matchRatingsToSquad(squadPlayers, fifaPlayers);
 }

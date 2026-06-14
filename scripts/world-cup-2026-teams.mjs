@@ -135,6 +135,36 @@ export function frenchFromEspnName(espnName) {
   return ESPN_TO_FRENCH[espnName] ?? espnName;
 }
 
+export const ENGLISH_NATION_NAMES = Object.fromEntries(
+  Object.entries(ESPN_TO_FRENCH).map(([english, french]) => [french, english]),
+);
+
+ENGLISH_NATION_NAMES["République de Corée"] = "South Korea";
+ENGLISH_NATION_NAMES["Pays-Bas"] = "Netherlands";
+ENGLISH_NATION_NAMES["Cap Vert"] = "Cape Verde";
+ENGLISH_NATION_NAMES["Arabie Saoudite"] = "Saudi Arabia";
+ENGLISH_NATION_NAMES["RD Congo"] = "DR Congo";
+ENGLISH_NATION_NAMES["États-Unis"] = "United States";
+ENGLISH_NATION_NAMES["Tchéquie"] = "Czechia";
+ENGLISH_NATION_NAMES["Bosnie-Herzégovine"] = "Bosnia and Herzegovina";
+ENGLISH_NATION_NAMES["Ouzbékistan"] = "Uzbekistan";
+ENGLISH_NATION_NAMES["Nouvelle-Zélande"] = "New Zealand";
+ENGLISH_NATION_NAMES["Côte d'Ivoire"] = "Ivory Coast";
+ENGLISH_NATION_NAMES.Turquie = "Turkey";
+
+export function englishNationName(frenchName) {
+  return ENGLISH_NATION_NAMES[frenchName] ?? frenchName;
+}
+
+export function englishGroups(groups) {
+  return Object.fromEntries(
+    Object.entries(groups).map(([key, teams]) => [
+      key,
+      teams.map((team) => englishNationName(team)),
+    ]),
+  );
+}
+
 export function eaNationNameFromFrench(frenchName) {
   return EA_NATION_NAMES[frenchName] ?? frenchName;
 }
