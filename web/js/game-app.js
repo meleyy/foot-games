@@ -26,7 +26,7 @@ import {
   teamProfile,
 } from "./game-engine.js";
 import { nationFlagUrl } from "./nation-flags.js";
-import { OnlineClient } from "./online-client.js";
+import { OnlineClient, fetchActiveOnlineMatch } from "./online-client.js";
 
 const state = {
   data: null,
@@ -223,11 +223,66 @@ function isOnlineMode() {
 }
 
 let onlineDraftTimerId = null;
+let onlineDraftSaveTimerId = null;
 
 function clearOnlineDraftTimer() {
   if (onlineDraftTimerId) {
     clearInterval(onlineDraftTimerId);
     onlineDraftTimerId = null;
+  }
+}
+
+function clearOnlineDraftSaveTimer() {
+  if (onlineDraftSaveTimerId) {
+    clearTimeout(onlineDraftSaveTimerId);
+    onlineDraftSaveTimerId = null;
+  }
+}
+
+function onlineDraftStatePayload() {
+  return {
+    formationId: state.formation?.id ?? "4-3-3",
+    assignments: state.assignments,
+    draftNations: state.draftNations,
+    pickIndex: state.pickIndex,
+    rollsLeft: state.rollsLeft,
+  };
+}
+
+function scheduleOnlineDraftSave() {
+  if (!isOnlineMode() || state.phase !== "draft") {
+    return;
+  }
+
+  const client = onlineClient();
+  const match = state.onlineMatch;
+
+  if (!client || !match || match.status !== "draft" || client.youSubmitted(match)) {
+    return;
+  }
+
+  clearOnlineDraftSaveTimer();
+  onlineDraftSaveTimerId = window.setTimeout(() => {
+    void saveOnlineDraftProgress();
+  }, 800);
+}
+
+async function saveOnlineDraftProgress() {
+  const client = onlineClient();
+  const match = state.onlineMatch;
+
+  if (!client || !match?.id || match.status !== "draft" || client.youSubmitted(match)) {
+    return;
+  }
+
+  try {
+    await client.saveDraftProgress({
+      matchId: match.id,
+      formationId: state.formation?.id ?? "4-3-3",
+      draftState: onlineDraftStatePayload(),
+    });
+  } catch {
+    // Best-effort sync; realtime will still drive match state.
   }
 }
 
@@ -268,33 +323,44 @@ function applyOnlineMatchState(match) {
     return;
   }
 
+  if (match.status === "abandoned" || match.status === "cancelled") {
+    clearOnlineDraftTimer();
+    state.onlineError = "Match abandonné (temps écoulé sans équipe valide).";
+    void resetOnlineSession().then(() => {
+      state.phase = "home";
+      render();
+    });
+    return;
+  }
+
   if (match.status === "draft") {
     const client = onlineClient();
     state.squadName = client?.youName(match) ?? state.squadName;
-    state.formation = formationById(
-      client?.isPlayerA(match) ? match.player_a_formation : match.player_b_formation,
-    );
+    const formationId = client?.isPlayerA(match)
+      ? match.player_a_formation ?? match.player_a_draft_state?.formationId
+      : match.player_b_formation ?? match.player_b_draft_state?.formationId;
+    state.formation = formationById(formationId);
     state.onlineDraftDeadline = match.draft_ends_at;
 
-    if (state.phase === "online-queue") {
+    if (client?.youSubmitted(match)) {
+      if (state.phase !== "online-waiting") {
+        state.phase = "online-waiting";
+      }
+      render();
+      return;
+    }
+
+    if (state.phase === "online-queue" || state.phase !== "draft") {
       startOnlineDraft();
       return;
     }
 
     if (state.phase === "online-waiting") {
-      render();
-      return;
-    }
-
-    if (state.phase === "draft") {
-      syncOnlineDraftTimer();
-      return;
-    }
-
-    if (state.phase !== "draft") {
       startOnlineDraft();
+      return;
     }
 
+    syncOnlineDraftTimer();
     return;
   }
 
@@ -328,7 +394,26 @@ function syncOnlineDraftTimer() {
   label.textContent = `${minutes}:${seconds}`;
 
   if (remainingSec <= 0 && !onlineClient()?.youSubmitted(state.onlineMatch)) {
-    void submitOnlineDraft({ forced: true });
+    void expireOnlineDraft();
+  }
+}
+
+async function expireOnlineDraft() {
+  const client = onlineClient();
+  const match = state.onlineMatch;
+
+  if (!client || !match?.id || client.youSubmitted(match)) {
+    return;
+  }
+
+  clearOnlineDraftTimer();
+  await saveOnlineDraftProgress();
+
+  try {
+    await client.checkDraftExpiry(match.id);
+  } catch (error) {
+    state.onlineError = error instanceof Error ? error.message : "Expiration du draft impossible.";
+    render();
   }
 }
 
@@ -339,31 +424,56 @@ function startOnlineDraftTimer() {
 }
 
 function startOnlineDraft() {
+  const client = onlineClient();
+  const match = state.onlineMatch;
+  const draftState = client?.yourDraftState(match);
+
   state.phase = "draft";
-  state.assignments = {};
-  state.pickIndex = 0;
-  state.rollsLeft = 3;
   state.selectedPlayer = null;
   state.selectedSlotId = null;
   state.draftComplete = false;
-  state.draftNations = drawUniqueNations(state.data.nations, 11);
+
+  if (draftState?.draftNations?.length === 11) {
+    state.draftNations = draftState.draftNations;
+    state.assignments = draftState.assignments ?? {};
+    state.pickIndex = Number.isFinite(draftState.pickIndex)
+      ? draftState.pickIndex
+      : filledCount();
+    state.rollsLeft = Number.isFinite(draftState.rollsLeft) ? draftState.rollsLeft : 3;
+  } else {
+    state.assignments = {};
+    state.pickIndex = 0;
+    state.rollsLeft = 3;
+    state.draftNations = drawUniqueNations(state.data.nations, 11);
+  }
+
   render();
   startOnlineDraftTimer();
-}
 
-async function submitOnlineDraft({ forced = false } = {}) {
-  const client = ensureOnlineClient();
-  const match = state.onlineMatch;
-
-  if (!match?.id) {
+  if (filledCount() >= 11) {
+    enterDraftReview();
     return;
   }
 
-  if (!forced && filledCount() < 11) {
+  const nation = state.draftNations[state.pickIndex];
+  if (nation) {
+    void revealDraftNation(nation, { resetRolls: state.pickIndex === 0 });
+  }
+
+  void saveOnlineDraftProgress();
+}
+
+async function submitOnlineDraft() {
+  const client = ensureOnlineClient();
+  const match = state.onlineMatch;
+
+  if (!match?.id || filledCount() < 11) {
     return;
   }
 
   clearOnlineDraftTimer();
+  clearOnlineDraftSaveTimer();
+  await saveOnlineDraftProgress();
 
   try {
     await client.submitDraft({
@@ -379,18 +489,40 @@ async function submitOnlineDraft({ forced = false } = {}) {
   }
 }
 
-function resetOnlineSession() {
+async function resetOnlineSession() {
   clearOnlineDraftTimer();
-  state.onlineClient?.disconnect();
+  clearOnlineDraftSaveTimer();
+  const client = state.onlineClient;
   state.onlineClient = null;
   state.onlineMatch = null;
   state.onlineError = null;
   state.onlineDraftDeadline = null;
   state.playMode = "solo";
+
+  if (client) {
+    await client.disconnect();
+  }
+}
+
+async function tryResumeOnlineMatch() {
+  try {
+    const active = await fetchActiveOnlineMatch();
+
+    if (!active?.matchId) {
+      return;
+    }
+
+    state.playMode = "online";
+    state.onlineError = null;
+    const client = ensureOnlineClient();
+    await client.watchMatch(active.matchId);
+  } catch {
+    // Ignore resume errors on the landing page.
+  }
 }
 
 async function enterOnlineQueue() {
-  resetOnlineSession();
+  await resetOnlineSession();
   state.playMode = "online";
   state.phase = "online-queue";
   state.onlineError = null;
@@ -717,11 +849,12 @@ function bindHome() {
   if (startBtn && startBtn.dataset.bound !== "true") {
     startBtn.dataset.bound = "true";
     startBtn.addEventListener("click", () => {
-      resetOnlineSession();
-      state.phase = "setup";
-      state.formation = formationById("4-3-3");
-      state.gameMode = "classic";
-      render();
+      void resetOnlineSession().then(() => {
+        state.phase = "setup";
+        state.formation = formationById("4-3-3");
+        state.gameMode = "classic";
+        render();
+      });
     });
   }
 
@@ -752,9 +885,10 @@ function renderOnlineQueue() {
 
 function bindOnlineQueue() {
   $("#online-cancel-queue")?.addEventListener("click", () => {
-    resetOnlineSession();
-    state.phase = "home";
-    render();
+    void resetOnlineSession().then(() => {
+      state.phase = "home";
+      render();
+    });
   });
 }
 
@@ -791,15 +925,25 @@ function renderOnlineResult() {
   const youGoals = isPlayerA ? result?.homeGoals ?? 0 : result?.awayGoals ?? 0;
   const oppGoals = isPlayerA ? result?.awayGoals ?? 0 : result?.homeGoals ?? 0;
 
+  const forfeit = result?.reason === "forfeit";
+  const abandoned = result?.reason === "abandoned";
+
   return `
     <section class="panel hero-panel ${won ? "is-win" : draw ? "" : "is-loss"}">
       <div class="hero-badge">1v1</div>
-      <h2>${draw ? "Match nul" : won ? "Victoire !" : "Défaite"}</h2>
+      <h2>${abandoned ? "Match annulé" : draw ? "Match nul" : won ? "Victoire !" : "Défaite"}</h2>
       <p class="lede online-scoreline">
         ${client?.youName(match) ?? state.squadName}
         <strong>${youGoals} – ${oppGoals}</strong>
         ${onlineOpponentName()}
       </p>
+      ${
+        forfeit
+          ? `<p class="copy">${won ? "Victoire par forfait (adversaire absent ou équipe incomplète)." : "Défaite par forfait."}</p>`
+          : abandoned
+            ? `<p class="copy">Aucune équipe valide n'a été envoyée à temps.</p>`
+            : ""
+      }
       <div class="actions">
         <button class="btn btn-primary" id="online-play-again">Rejouer en ligne</button>
         <button class="btn btn-ghost" id="online-back-home-result">Accueil</button>
@@ -814,9 +958,10 @@ function bindOnlineResult() {
   });
 
   $("#online-back-home-result")?.addEventListener("click", () => {
-    resetOnlineSession();
-    state.phase = "home";
-    render();
+    void resetOnlineSession().then(() => {
+      state.phase = "home";
+      render();
+    });
   });
 }
 
@@ -1270,6 +1415,7 @@ function moveDraftPlayer(fromSlotId, toSlotId) {
   refreshDraftSquadRow(fromSlotId);
   refreshDraftSquadRow(toSlotId);
   updateDraftSquadMeta();
+  scheduleOnlineDraftSave();
   return true;
 }
 
@@ -2968,6 +3114,7 @@ function bindDraft() {
     state.pickIndex += 1;
 
     if (state.pickIndex >= 11) {
+      scheduleOnlineDraftSave();
       enterDraftReview();
       return;
     }
@@ -2975,6 +3122,7 @@ function bindDraft() {
     const nextNation = state.draftNations[state.pickIndex];
     void revealDraftNation(nextNation, { resetRolls: true });
     updateDraftSelectionUI();
+    scheduleOnlineDraftSave();
   });
 
   $("#launch-simulation")?.addEventListener("click", () => {
@@ -3199,6 +3347,7 @@ async function init() {
   try {
     await bootstrap();
     refreshLandingStats();
+    await tryResumeOnlineMatch();
   } catch (error) {
     if (state.phase !== "home") {
       $("#app").innerHTML = `
