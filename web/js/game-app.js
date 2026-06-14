@@ -27,6 +27,10 @@ import {
 } from "./game-engine.js";
 import { nationFlagUrl } from "./nation-flags.js";
 import { OnlineClient, fetchActiveOnlineMatch } from "./online-client.js";
+import { ONLINE_DRAFT_SECONDS } from "./supabase-config.js";
+
+const ONLINE_NAME_KEY = "foot-games-online-name";
+const ONLINE_FORMATION_KEY = "foot-games-online-formation";
 
 const state = {
   data: null,
@@ -222,6 +226,107 @@ function isOnlineMode() {
   return state.playMode === "online";
 }
 
+function loadOnlineDisplayName() {
+  return localStorage.getItem(ONLINE_NAME_KEY)?.trim() || "Mon équipe";
+}
+
+function saveOnlineDisplayName(name) {
+  const trimmed = name.trim() || "Mon équipe";
+  localStorage.setItem(ONLINE_NAME_KEY, trimmed);
+  return trimmed;
+}
+
+function loadOnlineFormationId() {
+  return localStorage.getItem(ONLINE_FORMATION_KEY) || "4-3-3";
+}
+
+function saveOnlineFormationId(formationId) {
+  localStorage.setItem(ONLINE_FORMATION_KEY, formationId);
+}
+
+function onlineDraftTimerLabel() {
+  const minutes = String(Math.floor(ONLINE_DRAFT_SECONDS / 60)).padStart(2, "0");
+  const seconds = String(ONLINE_DRAFT_SECONDS % 60).padStart(2, "0");
+  return `${minutes}:${seconds}`;
+}
+
+function formatOnlineScore(result, isPlayerA) {
+  if (!result) {
+    return "0–0";
+  }
+
+  const youGoals = isPlayerA ? result.homeGoals ?? 0 : result.awayGoals ?? 0;
+  const oppGoals = isPlayerA ? result.awayGoals ?? 0 : result.homeGoals ?? 0;
+
+  if (!result.penalties) {
+    return `${youGoals}–${oppGoals}`;
+  }
+
+  const youPen = isPlayerA ? result.penalties.scoreA : result.penalties.scoreB;
+  const oppPen = isPlayerA ? result.penalties.scoreB : result.penalties.scoreA;
+
+  return `${youGoals}–${oppGoals} (${youPen}–${oppPen} t.a.b.)`;
+}
+
+function squadAverageFromAssignments(assignments) {
+  const players = Object.values(assignments ?? {}).filter(Boolean);
+
+  if (!players.length) {
+    return null;
+  }
+
+  return squadStrength(players);
+}
+
+function renderFormationPills({ selectedId, buttonClass = "formation-pill" } = {}) {
+  return FORMATIONS.map(
+    (formation) => `
+      <button
+        type="button"
+        class="option-pill ${buttonClass}"
+        data-formation="${formation.id}"
+        ${selectedId === formation.id ? 'aria-pressed="true"' : ""}
+      >
+        <span class="option-pill-label">${formation.label}</span>
+      </button>
+    `,
+  ).join("");
+}
+
+function renderOnlineSquadRecap(assignments, formationId, title) {
+  if (!assignments || !Object.keys(assignments).length) {
+    return "";
+  }
+
+  const formation = formationById(formationId);
+  const avg = squadAverageFromAssignments(assignments);
+
+  const rows = formation.slots
+    .map((slot) => {
+      const player = assignments[slot.id];
+
+      if (!player) {
+        return "";
+      }
+
+      return `
+        <li class="online-squad-row">
+          <span class="online-squad-pos">${slot.label}</span>
+          <span class="online-squad-player">${player.name}</span>
+          <span class="online-squad-ovr">${ratingOvr(player.rating)}</span>
+        </li>
+      `;
+    })
+    .join("");
+
+  return `
+    <article class="online-squad-recap">
+      <h3 class="online-squad-title">${title}${avg ? ` · OVR ${ratingOvr(avg)}` : ""}</h3>
+      <ol class="online-squad-list">${rows}</ol>
+    </article>
+  `;
+}
+
 let onlineDraftTimerId = null;
 let onlineDraftSaveTimerId = null;
 
@@ -339,7 +444,9 @@ function applyOnlineMatchState(match) {
     const formationId = client?.isPlayerA(match)
       ? match.player_a_formation ?? match.player_a_draft_state?.formationId
       : match.player_b_formation ?? match.player_b_draft_state?.formationId;
-    state.formation = formationById(formationId);
+    state.formation = formationById(
+      formationId ?? state.formation?.id ?? loadOnlineFormationId(),
+    );
     state.onlineDraftDeadline = match.draft_ends_at;
 
     if (client?.youSubmitted(match)) {
@@ -360,7 +467,15 @@ function applyOnlineMatchState(match) {
       return;
     }
 
-    syncOnlineDraftTimer();
+    if (state.phase === "draft") {
+      syncOnlineDraftTimer();
+      const hint = $("#draft-hint");
+      if (hint && isOnlineMode()) {
+        hint.innerHTML = onlineDraftHeaderHint();
+      }
+      return;
+    }
+
     return;
   }
 
@@ -524,6 +639,8 @@ async function tryResumeOnlineMatch() {
 async function enterOnlineQueue() {
   await resetOnlineSession();
   state.playMode = "online";
+  state.squadName = saveOnlineDisplayName(state.squadName);
+  saveOnlineFormationId(state.formation?.id ?? "4-3-3");
   state.phase = "online-queue";
   state.onlineError = null;
   render();
@@ -652,6 +769,10 @@ function render() {
     case "result":
       app.innerHTML = renderResult();
       bindResult();
+      break;
+    case "online-setup":
+      app.innerHTML = renderOnlineSetup();
+      bindOnlineSetup();
       break;
     case "online-queue":
       app.innerHTML = renderOnlineQueue();
@@ -861,9 +982,107 @@ function bindHome() {
   if (onlineBtn && onlineBtn.dataset.bound !== "true") {
     onlineBtn.dataset.bound = "true";
     onlineBtn.addEventListener("click", () => {
-      void enterOnlineQueue();
+      void enterOnlineSetup();
     });
   }
+}
+
+async function enterOnlineSetup() {
+  await resetOnlineSession();
+  state.playMode = "online";
+  state.phase = "online-setup";
+  state.squadName = loadOnlineDisplayName();
+  state.formation = formationById(loadOnlineFormationId());
+  state.onlineError = null;
+  render();
+}
+
+function renderOnlineSetup() {
+  const draftMinutes = Math.floor(ONLINE_DRAFT_SECONDS / 60);
+
+  return `
+    <section class="draft-board setup-board online-setup-board">
+      <header class="draft-top">
+        <div class="draft-top-head">
+          <span class="step">1v1</span>
+          <h2 class="draft-top-label">Préparation en ligne</h2>
+        </div>
+        <p class="draft-hint">Choisis ton pseudo et ta formation avant la mise en file d'attente.</p>
+      </header>
+      <div class="draft-columns setup-columns">
+        <div class="panel draft-zone draft-zone-setup-side">
+          <label class="setup-team-field field">
+            <span class="nation-label">Pseudo</span>
+            <input
+              id="online-squad-name"
+              class="setup-team-input"
+              value="${state.squadName}"
+              maxlength="24"
+              placeholder="Mon équipe"
+            />
+          </label>
+
+          <div class="setup-options">
+            <div class="setup-option-group">
+              <span class="nation-label">Formation</span>
+              <div class="formation-grid" id="online-setup-formation-list">
+                ${renderFormationPills({ selectedId: state.formation?.id })}
+              </div>
+            </div>
+            <p class="copy online-setup-note">
+              Draft parallèle de ${draftMinutes} minutes · simulation serveur à la fin.
+            </p>
+            ${state.onlineError ? `<p class="online-error" role="alert">${state.onlineError}</p>` : ""}
+            <div class="actions setup-actions">
+              <button class="btn btn-ghost" type="button" id="online-setup-back">Accueil</button>
+              <button class="btn btn-primary" type="button" id="online-start-queue">Lancer la recherche →</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel draft-zone draft-zone-pitch">
+          <div class="pitch pitch-11 pitch-preview" id="online-setup-pitch">
+            ${renderPreviewSlots(state.formation)}
+          </div>
+        </div>
+
+        <div class="panel draft-zone draft-zone-squad draft-zone-setup-summary">
+          <header class="squad-head">
+            <h3>${state.formation?.label ?? "4-3-3"}</h3>
+          </header>
+          <p class="squad-progress">Matchmaking automatique</p>
+          <p class="copy setup-copy">Tu affronteras un adversaire aléatoire en file d'attente.</p>
+        </div>
+      </div>
+    </section>
+  `;
+}
+
+function bindOnlineSetup() {
+  $("#online-squad-name")?.addEventListener("input", (event) => {
+    state.squadName = event.target.value.trim() || "Mon équipe";
+  });
+
+  $$("#online-setup-formation-list [data-formation]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.formation = formationById(button.dataset.formation);
+      render();
+    });
+  });
+
+  $("#online-setup-back")?.addEventListener("click", () => {
+    void resetOnlineSession().then(() => {
+      state.phase = "home";
+      render();
+    });
+  });
+
+  $("#online-start-queue")?.addEventListener("click", () => {
+    const input = $("#online-squad-name");
+    state.squadName = saveOnlineDisplayName(input?.value ?? state.squadName);
+    saveOnlineFormationId(state.formation?.id ?? "4-3-3");
+    void enterOnlineQueue();
+  });
 }
 
 function renderOnlineQueue() {
@@ -921,20 +1140,19 @@ function renderOnlineResult() {
   const playerId = client?.playerId;
   const isPlayerA = client?.isPlayerA(match);
   const won = result?.winnerId === playerId;
-  const draw = !result?.winnerId;
-  const youGoals = isPlayerA ? result?.homeGoals ?? 0 : result?.awayGoals ?? 0;
-  const oppGoals = isPlayerA ? result?.awayGoals ?? 0 : result?.homeGoals ?? 0;
-
+  const draw = !result?.winnerId && result?.reason !== "forfeit";
+  const scoreLine = formatOnlineScore(result, isPlayerA);
   const forfeit = result?.reason === "forfeit";
   const abandoned = result?.reason === "abandoned";
+  const showSquads = !abandoned && match?.player_a_assignments && match?.player_b_assignments;
 
   return `
-    <section class="panel hero-panel ${won ? "is-win" : draw ? "" : "is-loss"}">
+    <section class="panel hero-panel online-result-panel ${won ? "is-win" : draw ? "" : "is-loss"}">
       <div class="hero-badge">1v1</div>
       <h2>${abandoned ? "Match annulé" : draw ? "Match nul" : won ? "Victoire !" : "Défaite"}</h2>
       <p class="lede online-scoreline">
         ${client?.youName(match) ?? state.squadName}
-        <strong>${youGoals} – ${oppGoals}</strong>
+        <strong>${scoreLine}</strong>
         ${onlineOpponentName()}
       </p>
       ${
@@ -942,7 +1160,17 @@ function renderOnlineResult() {
           ? `<p class="copy">${won ? "Victoire par forfait (adversaire absent ou équipe incomplète)." : "Défaite par forfait."}</p>`
           : abandoned
             ? `<p class="copy">Aucune équipe valide n'a été envoyée à temps.</p>`
-            : ""
+            : result?.penalties
+              ? `<p class="copy">Score après prolongation · tirs au but inclus.</p>`
+              : ""
+      }
+      ${
+        showSquads
+          ? `<div class="online-result-squads">
+              ${renderOnlineSquadRecap(match.player_a_assignments, match.player_a_formation, match.player_a_name)}
+              ${renderOnlineSquadRecap(match.player_b_assignments, match.player_b_formation, match.player_b_name)}
+            </div>`
+          : ""
       }
       <div class="actions">
         <button class="btn btn-primary" id="online-play-again">Rejouer en ligne</button>
@@ -954,7 +1182,7 @@ function renderOnlineResult() {
 
 function bindOnlineResult() {
   $("#online-play-again")?.addEventListener("click", () => {
-    void enterOnlineQueue();
+    void enterOnlineSetup();
   });
 
   $("#online-back-home-result")?.addEventListener("click", () => {
@@ -963,6 +1191,35 @@ function bindOnlineResult() {
       render();
     });
   });
+}
+
+function onlineDraftHeaderHint() {
+  const client = onlineClient();
+  const match = state.onlineMatch;
+  const opponent = onlineOpponentName();
+  const timer = onlineDraftTimerLabel();
+  const opponentReady = client?.opponentSubmitted(match);
+  const opponentStatus = opponentReady
+    ? " · Adversaire prêt"
+    : " · Adversaire en draft";
+
+  if (state.draftComplete) {
+    return `1v1 vs ${opponent} · Vérifie ton équipe puis envoie${opponentStatus}`;
+  }
+
+  return `1v1 vs ${opponent} · Temps restant <strong id="online-draft-timer">${timer}</strong>${opponentStatus}`;
+}
+
+function onlineDraftPlayerHint(complete) {
+  if (complete) {
+    return "Réorganise ton onze si besoin, puis envoie ton équipe.";
+  }
+
+  if (state.selectedPlayer) {
+    return "Clique sur un poste compatible sur le terrain.";
+  }
+
+  return "Choisis un joueur dans la liste.";
 }
 
 function renderSetup() {
@@ -1292,7 +1549,13 @@ function updateDraftSelectionUI() {
 
   const hint = $("#draft-hint");
 
-  if (hint && !isOnlineMode()) {
+  if (hint && isOnlineMode()) {
+    hint.textContent = state.draftComplete
+      ? "Réorganise ton onze si besoin, puis envoie ton équipe."
+      : state.selectedSlotId
+        ? "Choisis un autre poste compatible."
+        : "Réorganise ton onze si besoin, puis envoie ton équipe.";
+  } else if (hint && !isOnlineMode()) {
     hint.textContent = state.selectedPlayer
       ? "Click a compatible position on the pitch."
       : "Pick a player from the list.";
@@ -1422,7 +1685,13 @@ function moveDraftPlayer(fromSlotId, toSlotId) {
 function updateDraftMoveUI() {
   const hint = $("#draft-hint");
 
-  if (hint && !isOnlineMode()) {
+  if (hint && isOnlineMode()) {
+    hint.textContent = state.draftComplete
+      ? "Réorganise ton onze si besoin, puis envoie ton équipe."
+      : state.selectedSlotId
+        ? "Choisis un autre poste compatible."
+        : "Réorganise ton onze si besoin, puis envoie ton équipe.";
+  } else if (hint && !isOnlineMode()) {
     hint.textContent = state.selectedSlotId
       ? "Pick another compatible position."
       : "Rearrange your eleven if needed, then start the simulation.";
@@ -1800,10 +2069,14 @@ function renderDraft() {
   const nation = complete ? null : state.draftNations[state.pickIndex];
   const progress = complete ? "Complete" : `${state.pickIndex + 1} / 11`;
   const hint = complete
-    ? "Rearrange your eleven if needed, then start the simulation."
-    : state.selectedPlayer
-      ? "Click a compatible position on the pitch."
-      : "Pick a player from the list.";
+    ? isOnlineMode()
+      ? onlineDraftPlayerHint(true)
+      : "Rearrange your eleven if needed, then start the simulation."
+    : isOnlineMode()
+      ? onlineDraftPlayerHint(false)
+      : state.selectedPlayer
+        ? "Click a compatible position on the pitch."
+        : "Pick a player from the list.";
   const filled = filledCount();
   const avg = squadStrength(currentSquad().filter(Boolean));
 
@@ -1815,11 +2088,7 @@ function renderDraft() {
           <h2 class="draft-top-label" id="draft-progress">Draft · ${progress}</h2>
         </div>
         <p class="draft-hint" id="draft-hint">
-          ${
-            isOnlineMode()
-              ? `1v1 vs ${onlineOpponentName()} · Temps restant <strong id="online-draft-timer">03:00</strong>`
-              : hint
-          }
+          ${isOnlineMode() ? onlineDraftHeaderHint() : hint}
         </p>
       </header>
       <div class="draft-columns">
@@ -1853,8 +2122,8 @@ function renderDraft() {
             <div class="player-list list-scroll" id="draft-player-list">
               ${
                 complete
-                  ? "<p class='copy draft-list-done'>Squad complete. Adjust positions on the pitch.</p>"
-                  : renderPlayerListHTML(nation) || "<p class='copy'>Empty squad.</p>"
+                  ? "<p class='copy draft-list-done'>Équipe complète. Ajuste les postes sur le terrain.</p>"
+                  : renderPlayerListHTML(nation) || "<p class='copy'>Effectif vide.</p>"
               }
             </div>
             <div class="list-scroll-edge list-scroll-edge-bottom" aria-hidden="true"></div>
@@ -1866,7 +2135,7 @@ function renderDraft() {
         <div class="panel draft-zone draft-zone-pitch">
           <div class="pitch-shell">
             <p class="pitch-move-hint" id="draft-pitch-hint" ${complete ? "" : "hidden"}>
-              You can move players to other compatible positions.
+              ${isOnlineMode() ? "Tu peux déplacer les joueurs vers d'autres postes compatibles." : "You can move players to other compatible positions."}
             </p>
             <div class="pitch pitch-11" id="draft-pitch">
               ${renderDraftPitchSlots(state.formation)}

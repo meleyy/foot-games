@@ -3001,6 +3001,70 @@ body.is-home .site-header {
   text-align: center;
 }
 
+.online-setup-note {
+  margin: 0;
+}
+
+.online-result-panel .online-result-squads {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+  width: 100%;
+  margin-top: var(--space-4);
+  text-align: left;
+}
+
+.online-squad-recap {
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.online-squad-title {
+  margin: 0 0 var(--space-2);
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.online-squad-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.online-squad-row {
+  display: grid;
+  grid-template-columns: 2.5rem 1fr auto;
+  gap: var(--space-2);
+  font-size: 0.85rem;
+}
+
+.online-squad-pos {
+  opacity: 0.65;
+  font-weight: 700;
+}
+
+.online-squad-player {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.online-squad-ovr {
+  font-weight: 800;
+}
+
+@media (max-width: 900px) {
+  .online-result-panel .online-result-squads {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 900px) {
   .online-lobby-grid {
     grid-template-columns: 1fr;
